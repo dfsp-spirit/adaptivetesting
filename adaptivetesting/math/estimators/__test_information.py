@@ -6,7 +6,7 @@ import numpy
 from scipy.differentiate import derivative
 
 
-def item_information_function(
+def item_information_function_old(
         mu: np.ndarray,
         a: np.ndarray,
         b: np.ndarray,
@@ -32,11 +32,31 @@ def item_information_function(
         # Central finite difference for gradient
         h = 1e-5
         return (probability_y1(x + h, a, b, c, d) - probability_y1(x - h, a, b, c, d)) / (2 * h)
-    
+
     product = (p_y1_grad(mu) ** 2) / (p_y1 * (1 - p_y1))
     information = np.sum(product)
     return information
 
+def item_information_function(
+        mu: np.ndarray,
+        a: np.ndarray,
+        b: np.ndarray,
+        c: np.ndarray,
+        d: np.ndarray
+) -> np.ndarray:
+    p_y1 = probability_y1(mu, a, b, c, d)
+
+    # Clip probabilities
+    p_y1_clipped = np.clip(p_y1, 1e-10, 1 - 1e-10)
+
+    def p_y1_grad(x: np.ndarray) -> np.ndarray:
+        # Use a more robust finite difference scheme
+        h = np.maximum(1e-8, 1e-8 * np.abs(x))  # Adaptive step size
+        return (probability_y1(x + h, a, b, c, d) - probability_y1(x - h, a, b, c, d)) / (2 * h)
+
+    product = (p_y1_grad(mu) ** 2) / (p_y1_clipped * (1 - p_y1_clipped))
+    information = np.sum(product)
+    return information
 
 def prior_information_function(prior: Prior,
                                optimization_interval: tuple[float, float] = (-10, 10)) -> np.ndarray:
@@ -59,7 +79,7 @@ def prior_information_function(prior: Prior,
         (score_values ** 2) * prior.pdf(x_vals),
         x_vals
     )
-    
+
     return information
 
 
