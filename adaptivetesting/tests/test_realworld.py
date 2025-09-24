@@ -5,10 +5,12 @@ from adaptivetesting.implementations import TestAssembler
 from adaptivetesting.models import AdaptiveTest, ItemPool, TestItem
 from adaptivetesting.math.estimators import BayesModal, CustomPrior
 from adaptivetesting.math.item_selection import maximum_information_criterion
+from adaptivetesting.math.estimators.__functions.__estimators import probability_y1, probability_y1_old
 
 import pandas as pd
 from scipy.stats import t
-from typing import List
+from typing import List, Tuple
+import numpy as np
 
 class TestRealWorld(unittest.TestCase):
 
@@ -73,4 +75,45 @@ class TestRealWorld(unittest.TestCase):
             print(f"After item #{idx+1} with ID {item.id}: estimated ability and standard error: {current_true_ability_level}, {std_err_estimate}")
 
 
+class TestProbabilityFunctions(unittest.TestCase):
 
+    def setUp(self):
+        """Set up common test parameters."""
+        # Set random seed for reproducible tests
+        np.random.seed(42)
+
+    def create_test_parameters(self, shape: Tuple = (1,)) -> Tuple:
+        """Create random but reasonable test parameters."""
+        # Reasonable ranges for IRT parameters
+        mu = np.random.uniform(-4, 4, shape)  # Ability: -4 to +4
+        a = np.random.uniform(0.5, 2.5, shape)  # Discrimination: 0.5 to 2.5
+        b = np.random.uniform(-3, 3, shape)  # Difficulty: -3 to +3
+        c = np.random.uniform(0, 0.3, shape)  # Guessing: 0% to 30%
+        d = np.random.uniform(0.7, 1.0, shape)  # Inattention: 70% to 100%
+
+        return mu, a, b, c, d
+
+    def test_normal_range_equivalence(self):
+        """Test that functions produce similar results in normal ranges."""
+        mu, a, b, c, d = self.create_test_parameters((1000,))
+
+        prob_old = probability_y1_old(mu, a, b, c, d)
+        prob_new = probability_y1(mu, a, b, c, d)
+
+        # Check that results are very close (within 1e-10)
+        np.testing.assert_array_almost_equal(prob_old, prob_new, decimal=10)
+
+        # Also check that all probabilities are within valid bounds
+        self.assertTrue(np.all(prob_new >= c))
+        self.assertTrue(np.all(prob_new <= d))
+
+    def test_extreme_values_stability(self):
+        """Test that new function handles extreme values without overflow."""
+        # Test with extreme ability values that could cause overflow
+        mu_extreme = np.array([-100, -50, -10, 0, 10, 50, 100])
+        a = np.array([2.0] * 7)
+        b = np.array([0.0] * 7)
+        c = np.array([0.2] * 7)
+        d = np.array([0.95] * 7)
+
+        # Old function might overflo
