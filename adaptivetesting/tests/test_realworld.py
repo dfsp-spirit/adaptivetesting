@@ -34,7 +34,21 @@ class TestRealWorld(unittest.TestCase):
     def test_our_issue(self):
         df_items : pd.DataFrame = self.load_dataframe()
         # Add a row with the user answers. We hardcode them here.
-        df_items['user_answer'] = ["same" for _ in range(len(df_items))]  # The User always answers "same"
+
+        # The user always answers "same":
+        df_items['user_answer'] = ["same" for _ in range(len(df_items))]
+
+        # The user always answers "diff":
+        # df_items['user_answer'] = ["diff" for _ in range(len(df_items))]
+
+        # The user always answers correctly:
+        # df_items['user_answer'] = df_items['correct'].tolist()
+
+        # The user always answers incorrectly:
+        # df_items['user_answer'] = ["diff" if ans == "same" else "same" for ans in df_items['correct'].tolist()]
+
+
+        # Create item pool from dataframe
         item_pool : ItemPool= ItemPool.load_from_dataframe(df_items)
 
         # Create adaptive test instance
@@ -69,9 +83,15 @@ class TestRealWorld(unittest.TestCase):
         adaptive_test.get_response = get_response
 
         # Run the adaptive test for each item in the pool
+        ability_levels : List[Tuple[float, float]] = []
         for idx, item in enumerate(item_pool.test_items):
             adaptive_test.run_test_once()
             current_true_ability_level, std_err_estimate = adaptive_test.estimate_ability_level()
             print(f"After item #{idx+1} with ID {item.id}: estimated ability and standard error: {current_true_ability_level}, {std_err_estimate}")
+            ability_levels.append((current_true_ability_level, std_err_estimate))
+
+        # Verify that ability levels are increasing monotonically
+        for i in range(1, len(ability_levels)):
+            self.assertGreaterEqual(ability_levels[i][0], ability_levels[i-1][0], f"Ability level did not increase monotonically at index {i}: {ability_levels[i-1][0]} -> {ability_levels[i][0]}")
 
 
