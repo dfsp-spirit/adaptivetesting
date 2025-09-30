@@ -1,4 +1,3 @@
-
 import unittest
 import os
 from adaptivetesting.implementations import TestAssembler
@@ -30,26 +29,13 @@ class TestRealWorld(unittest.TestCase):
 
         return df_items
 
-
-    def test_our_issue(self):
-        df_items : pd.DataFrame = self.load_dataframe()
-        # Add a row with the user answers. We hardcode them here.
-
-        # The user always answers "same":
-        df_items['user_answer'] = ["same" for _ in range(len(df_items))]
-
-        # The user always answers "diff":
-        # df_items['user_answer'] = ["diff" for _ in range(len(df_items))]
-
-        # The user always answers correctly:
-        # df_items['user_answer'] = df_items['correct'].tolist()
-
-        # The user always answers incorrectly:
-        # df_items['user_answer'] = ["diff" if ans == "same" else "same" for ans in df_items['correct'].tolist()]
-
+    def _run_adaptive_test_with_answers(self, answer_generator):
+        """Common test execution logic that takes different answer patterns"""
+        df_items = self.load_dataframe()
+        df_items['user_answer'] = answer_generator(df_items)
 
         # Create item pool from dataframe
-        item_pool : ItemPool= ItemPool.load_from_dataframe(df_items)
+        item_pool : ItemPool = ItemPool.load_from_dataframe(df_items)
 
         # Create adaptive test instance
         adaptive_test: AdaptiveTest = TestAssembler(
@@ -65,7 +51,6 @@ class TestRealWorld(unittest.TestCase):
             simulation=False,
             debug=False
         )
-
 
         # Define get_response function to simulate user answers from the dataframe
         def get_response(item: TestItem) -> int:
@@ -90,8 +75,54 @@ class TestRealWorld(unittest.TestCase):
             print(f"After item #{idx+1} with ID {item.id}: estimated ability and standard error: {current_true_ability_level}, {std_err_estimate}")
             ability_levels.append((current_true_ability_level, std_err_estimate))
 
-        # Verify that ability levels are increasing monotonically
+        return ability_levels
+
+    def _assert_monotonic_increase(self, ability_levels):
+        """Assert that ability levels increase monotonically"""
         for i in range(1, len(ability_levels)):
-            self.assertGreaterEqual(ability_levels[i][0], ability_levels[i-1][0], f"Ability level did not increase monotonically at index {i}: {ability_levels[i-1][0]} -> {ability_levels[i][0]}")
+            self.assertGreaterEqual(ability_levels[i][0], ability_levels[i-1][0],
+                                  f"Ability level did not increase at index {i}: {ability_levels[i-1][0]} -> {ability_levels[i][0]}")
 
+    def _assert_monotonic_decrease(self, ability_levels):
+        """Assert that ability levels decrease monotonically"""
+        for i in range(1, len(ability_levels)):
+            self.assertLessEqual(ability_levels[i][0], ability_levels[i-1][0],
+                               f"Ability level did not decrease at index {i}: {ability_levels[i-1][0]} -> {ability_levels[i][0]}")
 
+    def _assert_reasonable_final_ability(self, ability_levels):
+        """Assert that final ability is within reasonable bounds"""
+        final_ability = ability_levels[-1][0]
+        self.assertTrue(-5 <= final_ability <= 5,
+                       f"Final ability {final_ability} should be between -5 and 5")
+
+    def test_always_same(self):
+        """Test when user always answers 'same'"""
+        ability_levels = self._run_adaptive_test_with_answers(
+            lambda df: ["same" for _ in range(len(df))]
+        )
+        # For fixed "same" answers, check that final ability is reasonable
+        self._assert_reasonable_final_ability(ability_levels)
+
+    def test_always_diff(self):
+        """Test when user always answers 'diff'"""
+        ability_levels = self._run_adaptive_test_with_answers(
+            lambda df: ["diff" for _ in range(len(df))]
+        )
+        # For fixed "diff" answers, check that final ability is reasonable
+        self._assert_reasonable_final_ability(ability_levels)
+
+    def test_always_correct(self):
+        """Test when user always answers correctly"""
+        ability_levels = self._run_adaptive_test_with_answers(
+            lambda df: df['correct'].tolist()
+        )
+        # When always correct, ability should increase
+        self._assert_monotonic_increase(ability_levels)
+
+    def test_always_incorrect(self):
+        """Test when user always answers incorrectly"""
+        ability_levels = self._run_adaptive_test_with_answers(
+            lambda df: ["diff" if ans == "same" else "same" for ans in df['correct'].tolist()]
+        )
+        # When always incorrect, ability should decrease
+        self._assert_monotonic_decrease(ability_levels)
