@@ -132,7 +132,7 @@ class TestRealWorld(unittest.TestCase):
             df_items[col] = df_items[col].astype(float)
 
         if do_postprocess:
-            print("Postprocessing item parameters...")
+            print(" Postprocessing item parameters after loading from file...")
 
             # just rescale discriminations to range 0.1 to 3.0 by first normalizing to 0-1, then scaling to 0.1-3.0
             # This is a bit ad-hoc but seems to work well enough for our data.
@@ -254,7 +254,7 @@ class TestRealWorld(unittest.TestCase):
 
     def test_always_same(self):
         """Test when user always answers 'same'"""
-        print("Running test_always_same")
+        print("Running test 'test_always_same'")
         ability_levels = self._run_adaptive_test_with_answers(
             lambda df: ["same" for _ in range(len(df))]
         )
@@ -263,7 +263,7 @@ class TestRealWorld(unittest.TestCase):
 
     def test_always_diff(self):
         """Test when user always answers 'diff'"""
-        print("Running test_always_diff")
+        print("Running test 'test_always_diff'")
         ability_levels = self._run_adaptive_test_with_answers(
             lambda df: ["diff" for _ in range(len(df))]
         )
@@ -272,7 +272,7 @@ class TestRealWorld(unittest.TestCase):
 
     def test_always_correct(self):
         """Test when user always answers correctly"""
-        print("Running test_always_correct")
+        print("Running test 'test_always_correct'")
         ability_levels = self._run_adaptive_test_with_answers(
             lambda df: df['correct'].tolist()
         )
@@ -281,7 +281,7 @@ class TestRealWorld(unittest.TestCase):
 
     def test_always_incorrect(self):
         """Test when user always answers incorrectly"""
-        print("Running test_always_incorrect")
+        print("Running test 'test_always_incorrect'")
         ability_levels = self._run_adaptive_test_with_answers(
             lambda df: ["diff" if ans == "same" else "same" for ans in df['correct'].tolist()]
         )
@@ -292,7 +292,7 @@ class TestRealWorld(unittest.TestCase):
         """Test that always answering 'diff' leads to higher ability than always 'same'.
         This is to be expected for our specific item pool, which has more items were diff is correct.
         """
-        print("Running test_always_answering_diff_is_better_than_always_same_for_our_pool")
+        print("Running test 'test_always_answering_diff_is_better_than_always_same_for_our_pool'")
         ability_levels_same = self._run_adaptive_test_with_answers(
             lambda df: ["same" for _ in range(len(df))]
         )
@@ -303,6 +303,32 @@ class TestRealWorld(unittest.TestCase):
         final_ability_diff = ability_levels_diff[-1][0]
         self.assertGreater(final_ability_diff, final_ability_same,
                            f"Final ability for always 'diff' ({final_ability_diff}) should be greater than always 'same' ({final_ability_same})")
+
+    def test_always_answering_diff_is_better_than_random_for_our_pool(self):
+        """Test that always answering 'diff' leads to higher ability than random answers.
+        This is to be expected for our specific item pool, which has more items were diff is correct.
+        """
+        print("Running test 'test_always_answering_diff_is_better_than_random_for_our_pool'")
+        ability_levels_random = self._run_adaptive_test_with_answers(
+            lambda df: np.random.choice(['same', 'diff'], size=len(df)).tolist()
+        )
+        ability_levels_diff = self._run_adaptive_test_with_answers(
+            lambda df: ["diff" for _ in range(len(df))]
+        )
+        final_ability_random = ability_levels_random[-1][0]
+        final_ability_diff = ability_levels_diff[-1][0]
+        self.assertGreater(final_ability_diff, final_ability_random,
+                           f"Final ability for always 'diff' ({final_ability_diff}) should be greater than random answers ({final_ability_random})")
+
+    #@unittest.skip("Skipping this test for now")
+    def test_itempool_guessing_parameter_for_items_with_correct_answer_same_is_higher_than_for_items_with_correct_answer_diff(self):
+        """Test that the guessing parameter for items with correct answer 'same' is higher than for items with correct answer 'diff'."""
+        print("Running test 'test_itempool_guessing_parameter_for_items_with_correct_answer_same_is_higher_than_for_items_with_correct_answer_diff'")
+        df_items = self.load_dataframe(do_postprocess=True)
+        guessing_same = df_items[df_items['correct'] == 'same']['c'].mean()
+        guessing_diff = df_items[df_items['correct'] == 'diff']['c'].mean()
+        self.assertGreater(guessing_same, guessing_diff,
+                           f"Guessing parameter for 'same' ({guessing_same}) should be greater than for 'diff' ({guessing_diff})")
 
     ### Plots ###
 
