@@ -168,8 +168,8 @@ class TestRealWorld(unittest.TestCase):
             participant_id="john_doe",
             ability_estimator=BayesModal,
             estimator_args={
-                "prior": CustomPrior(t, 100),
-                "optimization_interval": (-10, 10)
+                "prior": CustomPrior(t, 100), # Use a student t distribution with 100 degrees of freedom as prior. This is close to a normal distribution, but has heavier tails, which is more robust against outliers.
+                "optimization_interval": (-15, 15) # Ability levels outside this range are not expected and rather unrealistic. If you observe this, your item pool is probably not well calibrated. Either change it, or adapt these values.
             },
             item_selector=maximum_information_criterion,
             simulation=False,
