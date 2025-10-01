@@ -27,12 +27,19 @@ class TestRealWorld(unittest.TestCase):
 
         if do_postprocess:
             print("Postprocessing item parameters...")
+
             # Fix negative discriminations (set to small positive value)
             df_items['a'] = np.where(df_items['a'] <= 0, 0.1, df_items['a'])
+
             # Rescale discriminations to reasonable range (0.1-3.0)
-            # Adjust these bounds based on your actual distribution
-            df_items['a'] = df_items['a'] / 20  # Example scaling - adjust based on your data
-            # Ensure guessing parameters are reasonable
+
+            # Compute scaling factor dynamically
+            max_reasonable_a = 3.0  # What you want your max discrimination to be
+            current_max_a = df_items['a'].max()
+            scale_factor = current_max_a / max_reasonable_a
+            df_items['a'] = df_items['a'] / scale_factor
+
+            # Ensure guessing parameters are reasonable (negative implies worse than random, which is unlikely)
             df_items['c'] = np.clip(df_items['c'], 0, 0.5)
 
         # Print summary statistics for verification
