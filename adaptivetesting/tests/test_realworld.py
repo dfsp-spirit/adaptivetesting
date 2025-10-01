@@ -29,7 +29,7 @@ class TestRealWorld(unittest.TestCase):
         # Set up the plotting style
         sns.set(style="whitegrid")
         fig, axes = plt.subplots(2, 2, figsize=(15, 10))
-        fig.suptitle('Distribution of IRT Parameters', fontsize=16, fontweight='bold')
+        fig.suptitle('Distribution of IRT Parameters (' + outfile_prefix + ')', fontsize=16, fontweight='bold')
 
         # Plot 1: Discrimination (a) parameter
         axes[0, 0].hist(df['a'], bins=30, alpha=0.7, color='skyblue', edgecolor='black')
@@ -131,15 +131,13 @@ class TestRealWorld(unittest.TestCase):
             df_items['a'] = np.where(df_items['a'] <= 0, 0.1, df_items['a'])
 
             # Rescale discriminations to reasonable range (0.1-3.0)
-
-            # Compute scaling factor dynamically
-            max_reasonable_a = 3.0  # What you want your max discrimination to be
+            max_reasonable_a = 3.0  # the max discrimination we want to allow
             current_max_a = df_items['a'].max()
             scale_factor = current_max_a / max_reasonable_a
             df_items['a'] = df_items['a'] / scale_factor
 
             # Ensure guessing parameters are reasonable (negative implies worse than random, which is unlikely)
-            df_items['c'] = np.clip(df_items['c'], 0, 0.5)
+            df_items['c'] = np.clip(df_items['c'], 0, 1.0)
 
         # Print summary statistics for verification
         print(f"Loaded {len(df_items)} items from item pool in file '{item_pool_file}':")
