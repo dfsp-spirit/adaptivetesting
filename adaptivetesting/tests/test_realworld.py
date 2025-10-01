@@ -134,14 +134,10 @@ class TestRealWorld(unittest.TestCase):
         if do_postprocess:
             print("Postprocessing item parameters...")
 
-            # Fix negative discriminations (set to small positive value)
-            df_items['a'] = np.where(df_items['a'] <= 0, 0.1, df_items['a'])
-
-            # Rescale discriminations to reasonable range (0.1-3.0).
-            max_reasonable_a = 3.0  # the max discrimination we want to allow
-            current_max_a = df_items['a'].max()
-            scale_factor = current_max_a / max_reasonable_a
-            df_items['a'] = df_items['a'] / scale_factor
+            # just rescale discriminations to range 0.1 to 3.0 by first normalizing to 0-1, then scaling to 0.1-3.0
+            # This is a bit ad-hoc but seems to work well enough for our data.
+            df_items['a'] = (df_items['a'] - df_items['a'].min()) / (df_items['a'].max() - df_items['a'].min()) # normalize to 0-1
+            df_items['a'] = df_items['a'] * (3.0 - 0.1) + 0.1
 
             ### The difficulty parameter (b) seems fine in our data, in range -3, 3. See plots.
             ### We leave the data as is.
@@ -251,8 +247,8 @@ class TestRealWorld(unittest.TestCase):
         num_same = (df_items['correct'] == 'same').sum()
         num_diff = (df_items['correct'] == 'diff').sum()
         self.assertEqual(num_same + num_diff, len(df_items), "All items should have a valid correct answer of 'same' or 'diff'")
-        print(f"Number of 'same' answers: {num_same}")
-        print(f"Number of 'diff' answers: {num_diff}")
+        print(f"Number of answers where 'same' is correct in item pool: {num_same}")
+        print(f"Number of answers where 'diff' is correct in item pool: {num_diff}")
         self.assertEqual(num_same, 55, "There should be 55 'same' answers in the item pool")
         self.assertEqual(num_diff, 90, "There should be 90 'diff' answers in the item pool")
 
