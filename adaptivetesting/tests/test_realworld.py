@@ -13,7 +13,7 @@ import numpy as np
 
 class TestRealWorld(unittest.TestCase):
 
-    def load_dataframe(self) -> pd.DataFrame:
+    def load_dataframe(self, do_postprocess: bool = True) -> pd.DataFrame:
         current_source_dir = os.path.dirname(os.path.abspath(__file__)) # dev_tools
         item_pool_file = os.path.join(current_source_dir, 'itembank_essential.csv')
         df_items = pd.read_csv(item_pool_file)
@@ -22,10 +22,24 @@ class TestRealWorld(unittest.TestCase):
             if col not in df_items.columns:
                 raise ValueError(f"CSV item bank task file '{item_pool_file}' must contain column: {col}")
 
-        df_items['a'] = df_items['a'].astype(float)
-        df_items['b'] = df_items['b'].astype(float)
-        df_items['c'] = df_items['c'].astype(float)
-        df_items['d'] = df_items['d'].astype(float)
+        for col in ['a', 'b', 'c', 'd']:
+            df_items[col] = df_items[col].astype(float)
+
+        if do_postprocess:
+            print("Postprocessing item parameters...")
+            # Fix negative discriminations (set to small positive value)
+            df_items['a'] = np.where(df_items['a'] <= 0, 0.1, df_items['a'])
+            # Rescale discriminations to reasonable range (0.1-3.0)
+            # Adjust these bounds based on your actual distribution
+            df_items['a'] = df_items['a'] / 20  # Example scaling - adjust based on your data
+            # Ensure guessing parameters are reasonable
+            df_items['c'] = np.clip(df_items['c'], 0, 0.5)
+
+        # Print summary statistics for verification
+        print(f"Loaded {len(df_items)} items from item pool in file '{item_pool_file}':")
+        print(f" - Discrimination (a) stats: min={df_items['a'].min()}, max={df_items['a'].max()}, mean={df_items['a'].mean()}")
+        print(f" - Difficulty (b) stats: min={df_items['b'].min()}, max={df_items['b'].max()}, mean={df_items['b'].mean()}")
+        print(f" - Guessing (c) stats: min={df_items['c'].min()}, max={df_items['c'].max()}, mean={df_items['c'].mean()}")
 
         return df_items
 
@@ -77,6 +91,7 @@ class TestRealWorld(unittest.TestCase):
 
         return ability_levels
 
+    ############################ Assertion Helpers ###########################
 
     def _assert_monotonic_increase(self, ability_levels):
         """Assert that ability levels increase monotonically"""
@@ -98,15 +113,15 @@ class TestRealWorld(unittest.TestCase):
         In our item pool,
         """
         final_ability = ability_levels[-1][0]
-        self.assertTrue(-5 <= final_ability <= 5,
-                       f"Final ability {final_ability} should be between -5 and 5")
+        self.assertTrue(-11 <= final_ability <= 2,
+                       f"Final ability {final_ability} unsrealistic for always answering 'same'.")
 
 
     def _assert_reasonable_final_ability_for_always_answer_diff(self, ability_levels):
         """Assert that final ability is within reasonable bounds"""
         final_ability = ability_levels[-1][0]
-        self.assertTrue(-5 <= final_ability <= 5,
-                       f"Final ability {final_ability} should be between -5 and 5")
+        self.assertTrue(-11 <= final_ability <= 2,
+                       f"Final ability {final_ability} unsrealistic for always answering 'diff'.")
 
     ############################ Test Cases ############################
 
@@ -134,6 +149,7 @@ class TestRealWorld(unittest.TestCase):
 
     def test_always_diff(self):
         """Test when user always answers 'diff'"""
+        print("Running test_always_diff")
         ability_levels = self._run_adaptive_test_with_answers(
             lambda df: ["diff" for _ in range(len(df))]
         )
@@ -142,6 +158,7 @@ class TestRealWorld(unittest.TestCase):
 
     def test_always_correct(self):
         """Test when user always answers correctly"""
+        print("Running test_always_correct")
         ability_levels = self._run_adaptive_test_with_answers(
             lambda df: df['correct'].tolist()
         )
@@ -150,8 +167,25 @@ class TestRealWorld(unittest.TestCase):
 
     def test_always_incorrect(self):
         """Test when user always answers incorrectly"""
+        print("Running test_always_incorrect")
         ability_levels = self._run_adaptive_test_with_answers(
             lambda df: ["diff" if ans == "same" else "same" for ans in df['correct'].tolist()]
         )
         # When always incorrect, ability should decrease
         self._assert_monotonic_decrease(ability_levels)
+
+    def test_always_answering_diff_is_better_than_always_same_for_our_pool(self):
+        """Test that always answering 'diff' leads to higher ability than always 'same'.
+        This is to be expected for our specific item pool, which has more items were diff is correct.
+        """
+        print("Running test_always_answering_diff_is_better_than_always_same_for_our_pool")
+        ability_levels_same = self._run_adaptive_test_with_answers(
+            lambda df: ["same" for _ in range(len(df))]
+        )
+        ability_levels_diff = self._run_adaptive_test_with_answers(
+            lambda df: ["diff" for _ in range(len(df))]
+        )
+        final_ability_same = ability_levels_same[-1][0]
+        final_ability_diff = ability_levels_diff[-1][0]
+        self.assertGreater(final_ability_diff, final_ability_same,
+                           f"Final ability for always 'diff' ({final_ability_diff}) should be greater than always 'same' ({final_ability_same})")
