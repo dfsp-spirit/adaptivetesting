@@ -15,6 +15,12 @@ import matplotlib.pyplot as plt
 
 class TestRealWorld(unittest.TestCase):
 
+    # Whether to postprocess item parameters when loading the item pool for tests.
+    #
+    # If you switch this to False, you can see that some of the tests fail.
+    # If you set this to True, the item parameters are fixed up a bit to be more reasonable and tests pass.
+    do_postprocess_item_parameters_in_tests = True
+
     @staticmethod
     def print_and_plot_item_parameters(df: pd.DataFrame, outfile_prefix: str = ""):
         """
@@ -112,7 +118,7 @@ class TestRealWorld(unittest.TestCase):
         print(f"  # Moderate (> 0.2): {(df['c'] > 0.2).sum()} items")
 
 
-    def load_dataframe(self, do_postprocess: bool = True) -> pd.DataFrame:
+    def load_dataframe(self, do_postprocess: bool = False) -> pd.DataFrame:
         current_source_dir = os.path.dirname(os.path.abspath(__file__)) # dev_tools
         item_pool_file = os.path.join(current_source_dir, 'itembank_essential.csv')
         df_items = pd.read_csv(item_pool_file)
@@ -149,7 +155,7 @@ class TestRealWorld(unittest.TestCase):
 
     def _run_adaptive_test_with_answers(self, answer_generator):
         """Common test execution logic that takes different answer patterns"""
-        df_items = self.load_dataframe()
+        df_items = self.load_dataframe(do_postprocess=self.do_postprocess_item_parameters_in_tests)
         df_items['user_answer'] = answer_generator(df_items)
 
         # Create item pool from dataframe
