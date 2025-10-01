@@ -86,13 +86,9 @@ class TestRealWorld(unittest.TestCase):
         plt.tight_layout()
         #plt.show() # interactive only
 
-        plt.savefig(outfile_prefix + 'irt_parameters_distribution.png', dpi=300, bbox_inches='tight')
-        plt.savefig(outfile_prefix + 'irt_parameters_distribution.pdf', bbox_inches='tight')
-        print(f"Plots saved as '{outfile_prefix}irt_parameters_distribution.png' and '{outfile_prefix}irt_parameters_distribution.pdf'")
-
         # Print summary statistics
         print("=" * 50)
-        print("SUMMARY STATISTICS")
+        print(f"SUMMARY STATISTICS for item parameters ({outfile_prefix}):")
         print("=" * 50)
         print(f"Discrimination (a) parameter:")
         print(f"  Mean: {df['a'].mean():.4f}")
@@ -117,6 +113,11 @@ class TestRealWorld(unittest.TestCase):
         print(f"  # Near zero (< 0.001): {(df['c'] < 0.001).sum()} items")
         print(f"  # Moderate (> 0.2): {(df['c'] > 0.2).sum()} items")
 
+        #plt.savefig(outfile_prefix + 'irt_parameters_distribution.png', dpi=300, bbox_inches='tight')
+        #print(f"Plots saved as '{outfile_prefix}irt_parameters_distribution.png'")
+        plt.savefig(outfile_prefix + 'irt_parameters_distribution.pdf', bbox_inches='tight')
+        print(f"Plots saved as '{outfile_prefix}irt_parameters_distribution.pdf'")
+
 
     def load_dataframe(self, do_postprocess: bool = False) -> pd.DataFrame:
         current_source_dir = os.path.dirname(os.path.abspath(__file__)) # dev_tools
@@ -136,14 +137,21 @@ class TestRealWorld(unittest.TestCase):
             # Fix negative discriminations (set to small positive value)
             df_items['a'] = np.where(df_items['a'] <= 0, 0.1, df_items['a'])
 
-            # Rescale discriminations to reasonable range (0.1-3.0)
+            # Rescale discriminations to reasonable range (0.1-3.0).
             max_reasonable_a = 3.0  # the max discrimination we want to allow
             current_max_a = df_items['a'].max()
             scale_factor = current_max_a / max_reasonable_a
             df_items['a'] = df_items['a'] / scale_factor
 
-            # Ensure guessing parameters are reasonable (negative implies worse than random, which is unlikely)
-            df_items['c'] = np.clip(df_items['c'], 0, 1.0)
+            ### The difficulty parameter (b) seems fine in our data, in range -3, 3. See plots.
+            ### We leave the data as is.
+
+            ### The guessing parameter (c) seems fine (range 0.0 to 0.8), but there are many very low values close to 0.
+            ### We currently dont do anything about this but setting a minimal value.
+            min_reasonable_c = 0.01
+            df_items['c'] = np.where(df_items['c'] < min_reasonable_c, min_reasonable_c, df_items['c'])
+
+
 
         # Print summary statistics for verification
         print(f"Loaded {len(df_items)} items from item pool in file '{item_pool_file}':")
