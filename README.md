@@ -3,6 +3,23 @@
 <img src="/docs/source/_static/logo.svg" style="width: 100%">
 </img>
 
+
+
+Check issue:
+
+
+```sh
+# clone repo first, then switch branch:
+git checkout investigate_issue_algo
+
+
+uv venv
+uv run pip install -e .
+uv add seaborn
+uv run python -m unittest adaptivetesting.tests.test_realworld
+```
+
+
 **An open-source Python package for simplified, customizable Computerized Adaptive Testing (CAT) using Bayesian methods.**
 
 
