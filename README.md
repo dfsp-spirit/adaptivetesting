@@ -9,7 +9,11 @@ Check issue:
 
 
 ```sh
-# clone repo first, then switch branch:
+# clone repo
+git clone https://github.com/dfsp-spirit/adaptivetesting.git
+cd adaptivetesting/
+
+# switch to correct branch
 git checkout investigate_issue_algo
 
 
