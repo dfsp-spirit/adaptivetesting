@@ -19,7 +19,7 @@ class TestRealWorld(unittest.TestCase):
     #
     # If you switch this to False, you can see that some of the tests fail.
     # If you set this to True, the item parameters are fixed up a bit to be more reasonable and tests pass.
-    do_postprocess_item_parameters_in_tests = True
+    do_postprocess_item_parameters_in_tests = False
 
     @staticmethod
     def print_and_plot_item_parameters(df: pd.DataFrame, outfile_prefix: str = ""):
@@ -331,6 +331,12 @@ class TestRealWorld(unittest.TestCase):
                            f"Guessing parameter for 'same' ({guessing_same}) should be greater than for 'diff' ({guessing_diff})")
 
     ### Plots ###
+
+    def test_simulation_with_predefined_thetas_recovers_thetas_approximately(self):
+        """Test that the simulation with predefined thetas recovers the thetas approximately."""
+        print("Running test 'test_simulation_with_predefined_thetas_recovers_thetas_approximately'")
+        # TODO: Implement this test
+        self.assertTrue(False, "Simulation test not implemented, TODO: implement it.")
 
     def test_plot_item_parameters(self):
         """Plot item parameters before and after postprocessing. Not a real test, just for visualization."""
