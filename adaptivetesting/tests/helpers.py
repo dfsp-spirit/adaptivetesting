@@ -5,6 +5,9 @@ import numpy as np
 from adaptivetesting.math.estimators import BayesModal, CustomPrior, NormalPrior
 
 class HelperTools:
+
+    silent = True
+
     @staticmethod
     def load_dataframe(do_postprocess: bool = False) -> pd.DataFrame:
         current_source_dir = os.path.dirname(os.path.abspath(__file__)) # dev_tools
@@ -19,7 +22,8 @@ class HelperTools:
             df_items[col] = df_items[col].astype(float)
 
         if do_postprocess:
-            print(" Postprocessing item parameters after loading from file...")
+            if not HelperTools.silent:
+                print(" Postprocessing item parameters after loading from file...")
 
             # just rescale discriminations to range 0.1 to 3.0 by first normalizing to 0-1, then scaling to 0.1-3.0
             # This is a bit ad-hoc but seems to work well enough for our data.
@@ -35,10 +39,11 @@ class HelperTools:
             df_items['c'] = np.where(df_items['c'] < min_reasonable_c, min_reasonable_c, df_items['c'])
 
         # Print summary statistics for verification
-        print(f"Loaded {len(df_items)} items from item pool in file '{item_pool_file}':")
-        print(f" - Discrimination (a) stats: min={df_items['a'].min()}, max={df_items['a'].max()}, mean={df_items['a'].mean()}")
-        print(f" - Difficulty (b) stats: min={df_items['b'].min()}, max={df_items['b'].max()}, mean={df_items['b'].mean()}")
-        print(f" - Guessing (c) stats: min={df_items['c'].min()}, max={df_items['c'].max()}, mean={df_items['c'].mean()}")
+        if not HelperTools.silent:
+            print(f"Loaded {len(df_items)} items from item pool in file '{item_pool_file}':")
+            print(f" - Discrimination (a) stats: min={df_items['a'].min()}, max={df_items['a'].max()}, mean={df_items['a'].mean()}")
+            print(f" - Difficulty (b) stats: min={df_items['b'].min()}, max={df_items['b'].max()}, mean={df_items['b'].mean()}")
+            print(f" - Guessing (c) stats: min={df_items['c'].min()}, max={df_items['c'].max()}, mean={df_items['c'].mean()}")
 
         return df_items
 
