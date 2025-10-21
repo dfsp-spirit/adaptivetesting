@@ -1,10 +1,21 @@
+
+# Tests that investigate some issues observed when using our real-world item pools and data with the adaptive testing framework.
+#
+# Our item parameters are not perfect, with rather atypical value ranges, so these tests help us to understand how the framework
+# behaves in these situations, and how the behavior compares to other tools for which we have setup equivalent tests,
+#  like e.g. the 'catR' package in R.
+#
+# To run only this test file: uv run python -m unittest adaptivetesting.tests.test_realworld
+
+
 import unittest
 import os
 from adaptivetesting.implementations import TestAssembler
 from adaptivetesting.models import AdaptiveTest, ItemPool, TestItem
-from adaptivetesting.math.estimators import BayesModal, CustomPrior
+from adaptivetesting.math.estimators import BayesModal, CustomPrior, NormalPrior
 from adaptivetesting.math.item_selection import maximum_information_criterion
 from adaptivetesting.math.estimators.__functions.__estimators import probability_y1
+from adaptivetesting.simulation import Simulation, StoppingCriterion, ResultOutputFormat, SimulationPool
 
 import pandas as pd
 from scipy.stats import t
@@ -12,6 +23,16 @@ from typing import List, Tuple
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
+
+from .helpers import HelperTools
+
+#from adaptivetesting.models.__misc import StoppingCriterion
+
+
+
+
+
+
 
 class TestRealWorld(unittest.TestCase):
 
@@ -119,47 +140,10 @@ class TestRealWorld(unittest.TestCase):
         print(f"Plots saved as '{outfile_prefix}irt_parameters_distribution.pdf'")
 
 
-    def load_dataframe(self, do_postprocess: bool = False) -> pd.DataFrame:
-        current_source_dir = os.path.dirname(os.path.abspath(__file__)) # dev_tools
-        item_pool_file = os.path.join(current_source_dir, 'itembank_essential.csv')
-        df_items = pd.read_csv(item_pool_file)
-
-        for col in ['ids', 'correct', 'a', 'b', 'c', 'd']:
-            if col not in df_items.columns:
-                raise ValueError(f"CSV item bank task file '{item_pool_file}' must contain column: {col}")
-
-        for col in ['a', 'b', 'c', 'd']:
-            df_items[col] = df_items[col].astype(float)
-
-        if do_postprocess:
-            print(" Postprocessing item parameters after loading from file...")
-
-            # just rescale discriminations to range 0.1 to 3.0 by first normalizing to 0-1, then scaling to 0.1-3.0
-            # This is a bit ad-hoc but seems to work well enough for our data.
-            df_items['a'] = (df_items['a'] - df_items['a'].min()) / (df_items['a'].max() - df_items['a'].min()) # normalize to 0-1
-            df_items['a'] = df_items['a'] * (3.0 - 0.1) + 0.1
-
-            ### The difficulty parameter (b) seems fine in our data, in range -3, 3. See plots.
-            ### We leave the data as is.
-
-            ### The guessing parameter (c) seems fine (range 0.0 to 0.8), but there are many very low values close to 0.
-            ### We currently dont do anything about this but setting a minimal value.
-            min_reasonable_c = 0.01
-            df_items['c'] = np.where(df_items['c'] < min_reasonable_c, min_reasonable_c, df_items['c'])
-
-
-
-        # Print summary statistics for verification
-        print(f"Loaded {len(df_items)} items from item pool in file '{item_pool_file}':")
-        print(f" - Discrimination (a) stats: min={df_items['a'].min()}, max={df_items['a'].max()}, mean={df_items['a'].mean()}")
-        print(f" - Difficulty (b) stats: min={df_items['b'].min()}, max={df_items['b'].max()}, mean={df_items['b'].mean()}")
-        print(f" - Guessing (c) stats: min={df_items['c'].min()}, max={df_items['c'].max()}, mean={df_items['c'].mean()}")
-
-        return df_items
 
     def _run_adaptive_test_with_answers(self, answer_generator):
         """Common test execution logic that takes different answer patterns"""
-        df_items = self.load_dataframe(do_postprocess=self.do_postprocess_item_parameters_in_tests)
+        df_items = HelperTools.load_dataframe(do_postprocess=self.do_postprocess_item_parameters_in_tests)
         df_items['user_answer'] = answer_generator(df_items)
 
         # Create item pool from dataframe
@@ -171,10 +155,7 @@ class TestRealWorld(unittest.TestCase):
             simulation_id="42",
             participant_id="john_doe",
             ability_estimator=BayesModal,
-            estimator_args={
-                "prior": CustomPrior(t, 100), # Use a student t distribution with 100 degrees of freedom as prior. This is close to a normal distribution, but has heavier tails, which is more robust against outliers.
-                "optimization_interval": (-15, 15) # Ability levels outside this range are not expected and rather unrealistic. If you observe this, your item pool is probably not well calibrated. Either change it, or adapt these values.
-            },
+            estimator_args=HelperTools.get_estimator_args(),
             item_selector=maximum_information_criterion,
             simulation=False,
             debug=False
@@ -204,6 +185,11 @@ class TestRealWorld(unittest.TestCase):
             ability_levels.append((current_true_ability_level, std_err_estimate))
 
         return ability_levels
+
+
+
+
+
 
     ############################ Assertion Helpers ###########################
 
@@ -241,7 +227,7 @@ class TestRealWorld(unittest.TestCase):
 
     def test_item_pool(self):
         """Test that item pool loads correctly"""
-        df_items = self.load_dataframe()
+        df_items = HelperTools.load_dataframe()
         self.assertGreater(len(df_items), 0, "Item pool should not be empty")
         # Check how many answers of each type are present
         num_same = (df_items['correct'] == 'same').sum()
@@ -324,7 +310,7 @@ class TestRealWorld(unittest.TestCase):
     def test_itempool_guessing_parameter_for_items_with_correct_answer_same_is_higher_than_for_items_with_correct_answer_diff(self):
         """Test that the guessing parameter for items with correct answer 'same' is higher than for items with correct answer 'diff'."""
         print("Running test 'test_itempool_guessing_parameter_for_items_with_correct_answer_same_is_higher_than_for_items_with_correct_answer_diff'")
-        df_items = self.load_dataframe(do_postprocess=True)
+        df_items = HelperTools.load_dataframe(do_postprocess=True)
         guessing_same = df_items[df_items['correct'] == 'same']['c'].mean()
         guessing_diff = df_items[df_items['correct'] == 'diff']['c'].mean()
         self.assertGreater(guessing_same, guessing_diff,
@@ -332,17 +318,15 @@ class TestRealWorld(unittest.TestCase):
 
     ### Plots ###
 
-    def test_simulation_with_predefined_thetas_recovers_thetas_approximately(self):
-        """Test that the simulation with predefined thetas recovers the thetas approximately."""
-        print("Running test 'test_simulation_with_predefined_thetas_recovers_thetas_approximately'")
-        # TODO: Implement this test
-        self.assertTrue(False, "Simulation test not implemented, TODO: implement it.")
+
 
     def test_plot_item_parameters(self):
         """Plot item parameters before and after postprocessing. Not a real test, just for visualization."""
-        df_items_post = self.load_dataframe(do_postprocess=True)
+        df_items_post = HelperTools.load_dataframe(do_postprocess=True)
         TestRealWorld.print_and_plot_item_parameters(df=df_items_post, outfile_prefix="postprocessed_")
 
-        df_items_raw = self.load_dataframe(do_postprocess=False)
+        df_items_raw = HelperTools.load_dataframe(do_postprocess=False)
         TestRealWorld.print_and_plot_item_parameters(df=df_items_raw, outfile_prefix="raw_")
         self.assertTrue(True, "Plotting completed successfully")
+
+
