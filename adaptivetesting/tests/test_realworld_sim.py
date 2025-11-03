@@ -101,33 +101,6 @@ class TestSimulations(unittest.TestCase):
             self.assertTrue(True)  # just a placeholder to avoid empty test case
 
 
-    def _simulate_adaptive_test_with_theta_pool_parallel(self, thetas: List[float]):
-        assert isinstance(thetas, list), "thetas should be a list of float values."
-        df_items = HelperTools.load_dataframe(do_postprocess=self.do_postprocess_item_parameters_in_tests)
-
-        # Create adaptive test instances for each theta
-        adaptive_tests : List[AdaptiveTest] = [self._get_adaptivetest_for_theta(df_items, theta) for theta in thetas]
-
-        sim_pool = SimulationPool(adaptive_tests=adaptive_tests, test_result_output=ResultOutputFormat.CSV, criterion=StoppingCriterion.SE, value=0.3)
-        sim_pool.start()
-
-        ability_estimates = []
-        estimation_std_errs = []
-        for test, theta in zip(sim_pool.adaptive_tests, thetas):
-            assert isinstance(test, AdaptiveTest), "Each test in simulation pool should be an AdaptiveTest instance."
-            assert isinstance(theta, float), "Each theta should be a float value."
-            estimate, std_err = test.estimate_ability_level()
-            ability_estimates.append((theta, estimate, std_err))
-            estimation_std_errs.append(std_err)
-
-        # Print the real ability levels, estimates, and standard errors
-        for theta, estimate, std_err in ability_estimates:
-            print(f" True ability (theta): {theta:.3f}, Estimated ability: {estimate:.3f}, Standard Error: {std_err:.3f}")
-
-
-        self.assertEqual(len(ability_estimates), len(thetas), "Number of ability estimates should match number of thetas.") # Fake test, this test is just about the printed output for now.
-
-
     #@unittest.skip("Skipping this test as it takes long and we have written results to CSV files already.")
     def test_simulation_with_predefined_thetas_recovers_thetas_approximately(self):
         """Test that the simulation with predefined thetas recovers the thetas approximately."""
@@ -182,15 +155,4 @@ class TestSimulations(unittest.TestCase):
         print("\nProblematic items correlation:")
         print(problematic[['a', 'b', 'c']].corr())
 
-
-
-    @unittest.skip("Skipping this test as the SimulationPool does not seem to work as expected.")
-    def test_simulation_with_large_theta_pool(self):
-        """Test that the simulation with predefined thetas recovers the thetas approximately."""
-        print("Running test 'test_simulation_with_predefined_thetas_recovers_thetas_approximately'")
-        # draw 50 thetas from a normal distribution with mean 0 and std 1
-        num_simulations = 50
-        np.random.seed(42)
-        thetas = np.random.normal(0, 1, num_simulations).tolist()
-        self._simulate_adaptive_test_with_theta_pool_parallel(thetas=thetas)
 
