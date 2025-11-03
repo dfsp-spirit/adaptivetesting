@@ -171,9 +171,15 @@ class AdaptiveTest(abc.ABC):
         # estimate ability level
         estimation, sd_error = self.estimate_ability_level()
 
-        # if something went wrong at current item, print debug info on this item
-        if self.ability_level < 5.0 and estimation > 5.0:
-            print(f"Unreasonable ability level '{estimation}' after administering item: {item_msg}")
+        current_ability = self.ability_level
+        # if something went wrong at current item, print debug info on this item. check for very high ability jump to positive extreme:
+        if (current_ability >= 0 and current_ability < 5.0) and estimation > 5.0:
+            print(f"Unreasonable high ability level '{estimation}' after administering item: {item_msg}")
+
+        # now check for negative extreme jump:
+        if (current_ability <= 0 and current_ability > -5.0) and estimation < -5.0:
+            print(f"Unreasonable low ability level '{estimation}' after administering item: {item_msg}")
+
 
 
         # update estimated ability level and standard error
