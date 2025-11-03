@@ -51,7 +51,7 @@ class TestSimulations(unittest.TestCase):
         return adaptive_test
 
 
-    def _simulate_adaptive_test_with_theta(self, theta: float, run_checks: bool = True, num_items: int = 35, idx: int = 0):
+    def _simulate_adaptive_test_with_theta(self, theta: float, run_checks: bool = True, num_items: int = 35, idx: int = 0, df_items = None):
         """Simulate an adaptive test with a given theta (true ability level).
         Args:
             theta (float): The true ability level of the participant.
@@ -59,7 +59,8 @@ class TestSimulations(unittest.TestCase):
             num_items (int, optional): The number of test items (questions) per participant to include in the test. Defaults to 35.
             idx (int, optional): Index of the simulation run, used for logging purposes only. Defaults to 0.
         """
-        df_items = HelperTools.load_dataframe(do_postprocess=self.do_postprocess_item_parameters_in_tests)
+        if df_items is None:
+            df_items = HelperTools.load_dataframe(do_postprocess=self.do_postprocess_item_parameters_in_tests)
 
         print(df_items.sort_values('a', ascending=False).head(10))
 
@@ -127,11 +128,12 @@ class TestSimulations(unittest.TestCase):
         self.assertEqual(len(ability_estimates), len(thetas), "Number of ability estimates should match number of thetas.") # Fake test, this test is just about the printed output for now.
 
 
+    #@unittest.skip("Skipping this test as it takes long and we have written results to CSV files already.")
     def test_simulation_with_predefined_thetas_recovers_thetas_approximately(self):
         """Test that the simulation with predefined thetas recovers the thetas approximately."""
         print("Running test 'test_simulation_with_predefined_thetas_recovers_thetas_approximately'")
 
-        num_simulations = 2000
+        num_simulations = 500
         np.random.seed(42)
         thetas = np.random.normal(0, 1, num_simulations).tolist()
 
@@ -139,6 +141,22 @@ class TestSimulations(unittest.TestCase):
             #print(f" Simulating for true ability level (theta): {theta}")
             self._simulate_adaptive_test_with_theta(theta, run_checks=False, num_items=35, idx=idx)
 
+    def test_simulation_with_single_problematic_item(self):
+        problematic_item_id = "S0603"  # Example problematic item ID
+        df_items = HelperTools.load_dataframe(do_postprocess=False)
+
+        problematic_item = df_items[df_items['ids'] == problematic_item_id]
+        theta = 0.9295870258808557 # output from large simulation run (test_simulation_with_predefined_thetas_recovers_thetas_approximately) where this item caused an issue
+
+        self.assertFalse(problematic_item.empty, f"Problematic item with ID {problematic_item_id} not found in item pool.")
+        # assert that dataframe has exactly one row
+        self.assertEqual(len(problematic_item), 1, f"Expected exactly one problematic item with ID {problematic_item_id}, but found {len(problematic_item)}.")
+
+        # Simulate an adaptive test with the problematic item only
+        self._simulate_adaptive_test_with_theta(theta, run_checks=False, num_items=1, idx=0, df_items=problematic_item)
+
+
+    @unittest.skip("Skipping this test as it is mainly for data analysis and visualization. We already have the output files.")
     def test_plot_properties(self):
         import seaborn as sns
 

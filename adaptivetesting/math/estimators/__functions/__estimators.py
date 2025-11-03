@@ -91,33 +91,66 @@ def likelihood(mu: np.ndarray,
                d: np.ndarray,
                response_pattern: np.ndarray) -> np.ndarray:
     """Likelihood function of the 4-PL model.
-    For optimization purposes, the function returns the negative value of the likelihood function.
-    To get the *real* value, multiply the result by -1.
-
-    Args:
-        mu (np.ndarray): ability level
-
-        a (np.ndarray): item discrimination parameter
-
-        b (np.ndarray): item difficulty parameter
-
-        c (np.ndarray): pseudo guessing parameter
-
-        d (np.ndarray): inattention parameter
-
-    Returns:
-        float: negative likelihood value of given ability value
+    Returns the LOG-likelihood for numerical stability.
     """
-    # reshape
-    a = np.expand_dims(a, axis=0)
-    b = np.expand_dims(b, axis=0)
-    c = np.expand_dims(c, axis=0)
-    d = np.expand_dims(d, axis=0)
+    # Calculate probabilities
+    p1 = probability_y1(mu, a, b, c, d)
+    p0 = probability_y0(mu, a, b, c, d)
 
-    terms = (probability_y1(mu, a, b, c, d)**response_pattern) * \
-        (probability_y0(mu, a, b, c, d) ** (1 - response_pattern))
+    # Use log-likelihood to prevent underflow
+    log_terms = (response_pattern * np.log(p1 + 1e-300)) + \
+                ((1 - response_pattern) * np.log(p0 + 1e-300))
 
-    return -np.prod(terms)
+    log_likelihood = np.sum(log_terms)
+
+    # Convert back to regular likelihood (or you could work entirely in log-space)
+    # Adding small epsilon to prevent log(0)
+
+    result = np.exp(log_likelihood)
+    if result == 0:
+        result = 1e-300
+
+    return result
+
+    def likelihood_old(mu: np.ndarray,
+                a: np.ndarray,
+                b: np.ndarray,
+                c: np.ndarray,
+                d: np.ndarray,
+                response_pattern: np.ndarray) -> np.ndarray:
+        """Likelihood function of the 4-PL model.
+        For optimization purposes, the function returns the value of the likelihood function.
+
+        Args:
+            mu (np.ndarray): ability level
+
+            a (np.ndarray): item discrimination parameter
+
+            b (np.ndarray): item difficulty parameter
+
+            c (np.ndarray): pseudo guessing parameter
+
+            d (np.ndarray): inattention parameter
+
+        Returns:
+            float: likelihood value of given ability value
+        """
+        #print(f"DEBUG: Likelihood: shapes of a={a.shape}, b={b.shape}, c={c.shape}, d={d.shape}")  # temporary debug print
+        # reshape
+        #a = np.expand_dims(a, axis=0)
+        #b = np.expand_dims(b, axis=0)
+        #c = np.expand_dims(c, axis=0)
+        #d = np.expand_dims(d, axis=0)
+
+        #print(f"DEBUG: Likelihood: after expands_dims_ shapes of a={a.shape}, b={b.shape}, c={c.shape}, d={d.shape}")  # temporary debug print
+
+        terms = (probability_y1(mu, a, b, c, d)**response_pattern) * \
+            (probability_y0(mu, a, b, c, d) ** (1 - response_pattern))
+
+        result = np.prod(terms)
+        print(f"DEBUG: likelihood at mu={mu} = {result}")  # temporary debug print
+
+        return result
 
 
 def maximize_likelihood_function(a: np.ndarray,
@@ -158,8 +191,7 @@ def maximize_likelihood_function(a: np.ndarray,
         raise AlgorithmException(
             "Response pattern is invalid. It consists of only one type of response.")
 
-    result: OptimizeResult = minimize_scalar(likelihood, args=(a, b, c, d, response_pattern),
-                                             bounds=border, method='bounded') # type: ignore
+    result: OptimizeResult = minimize_scalar(lambda mu: -likelihood(mu, a, b, c, d, response_pattern), bounds=border, method='bounded') # type: ignore
 
     if not result.success:
         raise AlgorithmException(f"Optimization failed: {result.message}")

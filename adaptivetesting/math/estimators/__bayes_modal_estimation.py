@@ -17,7 +17,7 @@ class BayesModal(IEstimator):
         """This class can be used to estimate the current ability level
             of a respondent given the response pattern and the corresponding
             item difficulties.
-            
+
             This type of estimation finds the maximum of the posterior distribution.
 
 
@@ -25,7 +25,7 @@ class BayesModal(IEstimator):
                 response_pattern (List[int] | np.ndarray ): list of response patterns (0: wrong, 1:right)
 
                 items (List[TestItem]): list of answered items
-            
+
                 prior (Prior): prior distribution
 
                 optimization_interval (Tuple[float, float]): interval used for the optimization function
@@ -50,7 +50,7 @@ class BayesModal(IEstimator):
         Raises:
             AlgorithmException: Raised when maximum could not be found.
             CustomPriorException: Raised when custom prior is not based on the `CustomPrior` class.
-        
+
         Returns:
             float: ability estimation
         """
@@ -72,7 +72,7 @@ class BayesModal(IEstimator):
             if not isinstance(self.prior, CustomPrior):
                 raise CustomPriorException("It seems like you are using a non-normal prior but",
                                            "did not use the CustomPrior base class!")
-            
+
             mu = np.linspace(self.optimization_interval[0],
                              self.optimization_interval[1],
                              num=1000)
@@ -93,7 +93,7 @@ class BayesModal(IEstimator):
                 # add prior
                 unmarginalized_posterior = lik_values * self.prior.pdf(mu)
                 # find argmin and return mu
-                estimate_index = np.argmin(unmarginalized_posterior)
+                estimate_index = np.argmax(unmarginalized_posterior)
                 return float(mu[estimate_index].astype(float))
             except Exception as e:
                 raise AlgorithmException(e)
