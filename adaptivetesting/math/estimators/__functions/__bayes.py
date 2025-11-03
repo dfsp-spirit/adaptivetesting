@@ -11,7 +11,8 @@ def maximize_posterior(
     c: np.ndarray,
     d: np.ndarray,
     response_pattern: np.ndarray,
-    prior: Prior
+    prior: Prior,
+    optimization_interval: tuple[float, float] = (-10, 10)
 ) -> float:
     def log_posterior(mu) -> np.ndarray:
         # Use log-likelihood to prevent underflow
@@ -27,7 +28,7 @@ def maximize_posterior(
         return log_lik + log_prior
 
     # Minimize negative log-posterior to maximize posterior
-    result: OptimizeResult = minimize_scalar(lambda mu: -log_posterior(mu), bounds=(-4, 4), method="bounded")
+    result: OptimizeResult = minimize_scalar(lambda mu: -log_posterior(mu), bounds=optimization_interval, method="bounded")
 
     if not result.success:
         raise AlgorithmException(f"Optimization failed: {result.message}")
