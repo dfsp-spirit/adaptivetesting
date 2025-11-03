@@ -131,7 +131,7 @@ class TestSimulations(unittest.TestCase):
         """Test that the simulation with predefined thetas recovers the thetas approximately."""
         print("Running test 'test_simulation_with_predefined_thetas_recovers_thetas_approximately'")
 
-        num_simulations = 1
+        num_simulations = 2000
         np.random.seed(42)
         thetas = np.random.normal(0, 1, num_simulations).tolist()
 
@@ -149,11 +149,20 @@ class TestSimulations(unittest.TestCase):
         df_items['problematic'] = df_items['ids'].isin(problematic_ids)
 
         # Pairplot colored by problematic status
-        sns.pairplot(df_items, vars=['a', 'b', 'c', 'd'], hue='problematic',
+        sns.pairplot(df_items, vars=['a', 'b', 'c'], hue='problematic', # ignore 'd' at it is always 1.0 in our data, so carries no information
                     diag_kind='hist', palette={True: 'red', False: 'blue'})
         #plt.show() # requires interactive environment, not script
-        plt.savefig('problematic_items_analysis.png', dpi=150, bbox_inches='tight')
+        output_file = 'problematic_items_analysis.png'
+        plt.savefig(output_file, dpi=150, bbox_inches='tight')
+        print(f"Saved pairplot to '{output_file}'")
         plt.close()
+
+
+        problematic = df_items[df_items['problematic'] == True]
+        print("All items correlation:")
+        print(df_items[['a', 'b', 'c']].corr())
+        print("\nProblematic items correlation:")
+        print(problematic[['a', 'b', 'c']].corr())
 
 
 
