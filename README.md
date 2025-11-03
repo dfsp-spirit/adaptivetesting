@@ -7,6 +7,7 @@
 
 Check issue:
 
+Installation:
 
 ```sh
 # clone repo
@@ -20,9 +21,15 @@ git checkout investigate_issue_algo
 uv venv
 uv run pip install -e .
 uv add seaborn
-uv run python -m unittest adaptivetesting.tests.test_realworld
 ```
 
+Running:
+
+```sh
+# in the repo root
+uv run python -m unittest adaptivetesting.tests.test_realworld
+uv run python -m unittest adaptivetesting.tests.test_realworld_sim
+```
 
 **An open-source Python package for simplified, customizable Computerized Adaptive Testing (CAT) using Bayesian methods.**
 
