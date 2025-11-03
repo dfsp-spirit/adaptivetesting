@@ -47,7 +47,11 @@ for (i in 1:n_participants) {
   # Store results
   results$estimated_theta[i] <- sim_result$thFinal
   results$sem[i] <- sim_result$seFinal
-  results$items_administered[i] <- paste(rownames(items_matrix)[sim_result$test], collapse = ", ")
+
+  administered_indices <- sim_result$testItems
+  administered_item_ids <- rownames(items_matrix)[administered_indices]
+  print(administered_item_ids)
+  results$items_administered[i] <- paste(administered_item_ids, collapse = ", ")
 
   cat(" True ability (theta):", round(true_thetas[i], 6),
       "Estimated ability:", round(sim_result$thFinal, 6),
