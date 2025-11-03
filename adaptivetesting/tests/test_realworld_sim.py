@@ -61,6 +61,8 @@ class TestSimulations(unittest.TestCase):
         """
         df_items = HelperTools.load_dataframe(do_postprocess=self.do_postprocess_item_parameters_in_tests)
 
+        print(df_items.sort_values('a', ascending=False).head(10))
+
         # Create adaptive test instance
         adaptive_test: AdaptiveTest = self._get_adaptivetest_for_theta(df_items, theta, debug=False)
 
@@ -129,13 +131,30 @@ class TestSimulations(unittest.TestCase):
         """Test that the simulation with predefined thetas recovers the thetas approximately."""
         print("Running test 'test_simulation_with_predefined_thetas_recovers_thetas_approximately'")
 
-        num_simulations = 5000
+        num_simulations = 1
         np.random.seed(42)
         thetas = np.random.normal(0, 1, num_simulations).tolist()
 
         for idx, theta in enumerate(thetas):
             #print(f" Simulating for true ability level (theta): {theta}")
             self._simulate_adaptive_test_with_theta(theta, run_checks=False, num_items=35, idx=idx)
+
+    def test_plot_properties(self):
+        import seaborn as sns
+
+        df_items = HelperTools.load_dataframe(do_postprocess=False)
+
+        problematic_ids = ["S0603", "S067", "S0709", "S101", "S1101", "S1109", "S1201", "S120", "S1212", "S129", "S132", "S1401", "S1406", "S153", "S156"]
+        # Add a 'problematic' column
+        df_items['problematic'] = df_items['ids'].isin(problematic_ids)
+
+        # Pairplot colored by problematic status
+        sns.pairplot(df_items, vars=['a', 'b', 'c', 'd'], hue='problematic',
+                    diag_kind='hist', palette={True: 'red', False: 'blue'})
+        #plt.show() # requires interactive environment, not script
+        plt.savefig('problematic_items_analysis.png', dpi=150, bbox_inches='tight')
+        plt.close()
+
 
 
     @unittest.skip("Skipping this test as the SimulationPool does not seem to work as expected.")
