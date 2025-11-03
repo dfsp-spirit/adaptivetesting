@@ -31,3 +31,7 @@ class TestItem:
             item_dict["id"] = self.id
 
         return item_dict
+
+    def __repr__(self):
+        return f"TestItem(id={self.id}, a={self.a:.2f}, b={self.b:.2f}, c={self.c:.2f}, d={self.d:.2f})"
+

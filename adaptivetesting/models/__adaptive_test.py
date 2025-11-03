@@ -86,7 +86,7 @@ class AdaptiveTest(abc.ABC):
             List[float]: difficulties of answered items
         """
         return [item.b for item in self.answered_items]
-    
+
     def get_answered_items(self) -> List[TestItem]:
         """
         Returns:
@@ -147,10 +147,10 @@ class AdaptiveTest(abc.ABC):
         the current instance.
         """
         # get item
-        item = self.get_next_item()
-        if item is not None:
-            if self.DEBUG:
-                print(f"Selected {item.b} for an ability level of {self.ability_level}.")
+        item : TestItem = self.get_next_item()
+
+        item_msg = f"   * Selected {item} for an ability level of {self.ability_level}."
+
 
         # check if simulation is running
         response = None
@@ -170,6 +170,11 @@ class AdaptiveTest(abc.ABC):
 
         # estimate ability level
         estimation, sd_error = self.estimate_ability_level()
+
+        # if something went wrong at current item, print debug info on this item
+        if self.ability_level < 5.0 and estimation > 5.0:
+            print(f"Unreasonable ability level '{estimation}' after administering item: {item_msg}")
+
 
         # update estimated ability level and standard error
         self.ability_level = estimation

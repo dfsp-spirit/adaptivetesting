@@ -31,7 +31,7 @@ class TestSimulations(unittest.TestCase):
 
     do_postprocess_item_parameters_in_tests = False
 
-    def _get_adaptivetest_for_theta(self, df_items, theta: float) -> AdaptiveTest:
+    def _get_adaptivetest_for_theta(self, df_items, theta: float, debug: bool = False) -> AdaptiveTest:
         # Create adaptive test instance
         item_pool : ItemPool = ItemPool.load_from_dataframe(df_items)
 
@@ -45,17 +45,24 @@ class TestSimulations(unittest.TestCase):
             estimator_args=HelperTools.get_estimator_args(),
             item_selector=maximum_information_criterion,
             simulation=True,
-            debug=False,
+            debug=debug,
             true_ability_level=theta
         )
         return adaptive_test
 
 
-    def _simulate_adaptive_test_with_theta(self, theta: float, run_checks: bool = True):
+    def _simulate_adaptive_test_with_theta(self, theta: float, run_checks: bool = True, num_items: int = 35, idx: int = 0):
+        """Simulate an adaptive test with a given theta (true ability level).
+        Args:
+            theta (float): The true ability level of the participant.
+            run_checks (bool, optional): Whether to run checks so that test is aborted as soon as an estimate deviates significantly from true ability. Defaults to True. Set to False if you just want to see the full printed output for all simulations, even if an early one fails.
+            num_items (int, optional): The number of test items (questions) per participant to include in the test. Defaults to 35.
+            idx (int, optional): Index of the simulation run, used for logging purposes only. Defaults to 0.
+        """
         df_items = HelperTools.load_dataframe(do_postprocess=self.do_postprocess_item_parameters_in_tests)
 
         # Create adaptive test instance
-        adaptive_test: AdaptiveTest = self._get_adaptivetest_for_theta(df_items, theta)
+        adaptive_test: AdaptiveTest = self._get_adaptivetest_for_theta(df_items, theta, debug=False)
 
         # Run simulation
         simulation = Simulation(
@@ -63,9 +70,10 @@ class TestSimulations(unittest.TestCase):
             test_result_output=ResultOutputFormat.CSV
         )
 
+        print(f"*Simulation #{idx + 1}: Simulating for true ability level (theta): {theta} with {num_items} items.")
         simulation.simulate(
             criterion=StoppingCriterion.LENGTH,
-            value=35  # Stop when length of test items >= 35
+            value=num_items  # Stop when length of test items >= 35
         )
 
         # Save results
@@ -80,7 +88,7 @@ class TestSimulations(unittest.TestCase):
         self.assertGreater(std_err, 0, f"Estimated standard error {std_err} is out of reasonable bounds.")
         self.assertLess(std_err, 10, f"Estimated standard error {std_err} is out of reasonable bounds.")
 
-        allowed_deviation_factor = 5.0  # allow estimates within 3 standard errors of the true ability level
+        allowed_deviation_factor = 5.0  # allow estimates within N standard errors of the true ability level
         print(f" True ability (theta): {theta}, Estimated ability: {estimate}, Standard Error: {std_err}")
 
         if run_checks:
@@ -121,13 +129,13 @@ class TestSimulations(unittest.TestCase):
         """Test that the simulation with predefined thetas recovers the thetas approximately."""
         print("Running test 'test_simulation_with_predefined_thetas_recovers_thetas_approximately'")
 
-        num_simulations = 50
+        num_simulations = 5000
         np.random.seed(42)
         thetas = np.random.normal(0, 1, num_simulations).tolist()
 
-        for theta in thetas:
+        for idx, theta in enumerate(thetas):
             #print(f" Simulating for true ability level (theta): {theta}")
-            self._simulate_adaptive_test_with_theta(theta, run_checks=False)
+            self._simulate_adaptive_test_with_theta(theta, run_checks=False, num_items=35, idx=idx)
 
 
     @unittest.skip("Skipping this test as the SimulationPool does not seem to work as expected.")

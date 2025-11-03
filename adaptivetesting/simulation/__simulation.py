@@ -8,6 +8,8 @@ from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_compl
 from tqdm import tqdm
 import platform
 
+import logging
+logger = logging.getLogger(__name__)
 
 class Simulation:
     def __init__(self,
@@ -82,12 +84,12 @@ def setup_simulation_and_start(test: AdaptiveTest,
 
     Args:
         test (AdaptiveTest): The adaptive test instance to be simulated.
-        
+
         test_result_output (ResultOutputFormat): The format or handler for outputting test results.
-        
+
         criterion (StoppingCriterion | list[StoppingCriterion]):
             The criterion used to determine when the simulation should stop.
-        
+
         value (float):
             The value associated with the stopping criterion (e.g., maximum number of items, target standard error).
     """
@@ -107,22 +109,22 @@ class SimulationPool():
                  value: float = 0.4):
         """
         A pool manager for running multiple adaptive test simulations in parallel.
-        
+
         Args:
             adaptive_tests (list[AdaptiveTest]): List of adaptive test instances to be simulated.
-            
+
             test_results_output (ResultOutputFormat): Format for outputting test results.
-            
+
             criterion (StoppingCriterion | list[StoppingCriterion]):
                 Stopping criterion or list of criteria for the simulations.
-            
+
             value (float): Value associated with the stopping criterion (default is 0.4).
         """
         self.adaptive_tests = adaptive_tests
         self.test_results_output = test_result_output
         self.criterion = criterion
         self.value = value
-        
+
     def start(self):
         """
         Starts the simulation by executing adaptive tests in parallel.
