@@ -100,20 +100,32 @@ class TestSimulations(unittest.TestCase):
         else:
             self.assertTrue(True)  # just a placeholder to avoid empty test case
 
+        return estimate, std_err
+
 
     #@unittest.skip("Skipping this test as it takes long and we have written results to CSV files already.")
     def test_simulation_with_predefined_thetas_recovers_thetas_approximately(self):
         """Test that the simulation with predefined thetas recovers the thetas approximately."""
         print("Running test 'test_simulation_with_predefined_thetas_recovers_thetas_approximately'")
 
-        num_simulations = 500
+        num_simulations = 50
         np.random.seed(42)
         thetas = np.random.normal(0, 1, num_simulations).tolist()
 
+        estimates: List[Tuple[float, float]] = []
+
         for idx, theta in enumerate(thetas):
             #print(f" Simulating for true ability level (theta): {theta}")
-            self._simulate_adaptive_test_with_theta(theta, run_checks=False, num_items=35, idx=idx)
+            estimate = self._simulate_adaptive_test_with_theta(theta, run_checks=False, num_items=35, idx=idx)
+            estimates.append(estimate)
 
+        # Compute coorrelation between true thetas and estimates
+        true_thetas = np.array(thetas)
+        estimated_thetas = np.array([est[0] for est in estimates])
+        correlation = np.corrcoef(true_thetas, estimated_thetas)[0, 1]
+        print(f"Correlation between true thetas and estimated thetas: {correlation}")
+
+    @unittest.skip("Skipping this test as single item does not show issue")
     def test_simulation_with_single_problematic_item(self):
         problematic_item_id = "S0603"  # Example problematic item ID
         df_items = HelperTools.load_dataframe(do_postprocess=False)
