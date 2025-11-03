@@ -31,6 +31,8 @@ uv run python -m unittest adaptivetesting.tests.test_realworld
 uv run python -m unittest adaptivetesting.tests.test_realworld_sim
 ```
 
+Also check out the R version of the simulation in the `catR_simulation.R` file and compare results to python version.
+
 **An open-source Python package for simplified, customizable Computerized Adaptive Testing (CAT) using Bayesian methods.**
 
 
