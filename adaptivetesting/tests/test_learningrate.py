@@ -99,7 +99,34 @@ class TestRealWorld(unittest.TestCase):
                        f"Final ability {final_ability} unrealistic for always answering 'same'.")
 
 
-    def add_item_columns_to_dataframe(self, df_answers_and_items):
+    def _load_server_log_dataframe(self) -> pd.DataFrame:
+        current_source_dir = os.path.dirname(os.path.abspath(__file__)) # dev_tools
+        answers_and_items_file = os.path.join(current_source_dir, "CustomTaskTrial_filtered.csv")
+        df_answers_and_items = pd.read_csv(answers_and_items_file)
+
+        # assert the columns "definition", "correct", and "clicked_object" exist in the dataframe
+        expected_columns = ["definition", "correct", "clicked_object"]
+        for col in expected_columns:
+            self.assertIn(col, df_answers_and_items.columns, f"Column '{col}' not found in answers and items file.")
+
+        df_answers_and_items = self._add_item_columns_to_dataframe(df_answers_and_items)
+        expected_columns_after = expected_columns + ["ids", "a", "b", "c", "d"]
+        for col in expected_columns_after:
+            self.assertIn(col, df_answers_and_items.columns, f"Column '{col}' not found in answers and items file after adding item columns.")
+
+        # Make sure parsing worked: the first row must have id 103, correct "diff" and clicked_object "diff"
+        self.assertEqual(df_answers_and_items.loc[0, "ids"], 103, "First row ItemId should be 103")
+        self.assertEqual(df_answers_and_items.loc[0, "correct"], "diff", "First row correct answer should be 'diff'")
+        self.assertEqual(df_answers_and_items.loc[0, "clicked_object"], "diff", "First row clicked_object should be 'diff'")
+
+        # Also check last row: ItemId 114, correct "same" and clicked_object "same"
+        self.assertEqual(df_answers_and_items.loc[len(df_answers_and_items)-1, "ids"], 114, "Last row ItemId should be 143")
+        self.assertEqual(df_answers_and_items.loc[len(df_answers_and_items)-1, "correct"], "diff", "Last row correct answer should be 'diff'")
+        self.assertEqual(df_answers_and_items.loc[len(df_answers_and_items)-1, "clicked_object"], "diff", "Last row clicked_object should be 'diff'")
+
+        return df_answers_and_items
+
+    def _add_item_columns_to_dataframe(self, df_answers_and_items):
         # the "definition" column contains a JSON that includes the item ID in the "id" field, it looks like this:
         # {"item": {"py/object": "adaptivetesting.models.__test_item.TestItem", "id": "103", "a": 43.07178122732465, "b": 0.0119335203113762, "c": 0.121192453225549, "d": 1.0}, "correct": "diff", "id": {"py/object": "numpy.int64", "dtype": "int64", "value": 103}, "merged_file": "static/stimuli_merged/Task_0103_merged.wav", "duration_target": {"py/object": "numpy.float64",
         # parse the ID from the JSON in the "definition" column and create a new column "ItemId" in the dataframe
@@ -117,45 +144,64 @@ class TestRealWorld(unittest.TestCase):
             d = float(definition_dict["item"]["d"])
             return a, b, c, d
 
-        # Create new column "ItemId"
-        df_answers_and_items["ItemId"] = df_answers_and_items["definition"].apply(parse_item_id)
+        # Create new column "ids"
+        df_answers_and_items["ids"] = df_answers_and_items["definition"].apply(parse_item_id)
         # Create new columns for item attributes
         df_answers_and_items[["a", "b", "c", "d"]] = df_answers_and_items["definition"].apply(parse_item_attributes).apply(pd.Series)
         return df_answers_and_items
 
 
     def test_answers_from_server(self):
-        current_source_dir = os.path.dirname(os.path.abspath(__file__)) # dev_tools
-        answers_and_items_file = os.path.join(current_source_dir, "CustomTaskTrial_filtered.csv")
-        df_answers_and_items = pd.read_csv(answers_and_items_file)
-        # assert the columns "definition", "correct", and "clicked_object" exist in the dataframe
-        expected_columns = ["definition", "correct", "clicked_object"]
-        for col in expected_columns:
-            self.assertIn(col, df_answers_and_items.columns, f"Column '{col}' not found in answers and items file.")
 
-        df_answers_and_items = self.add_item_columns_to_dataframe(df_answers_and_items)
-        expected_columns_after = expected_columns + ["ItemId", "a", "b", "c", "d"]
-        for col in expected_columns_after:
-            self.assertIn(col, df_answers_and_items.columns, f"Column '{col}' not found in answers and items file after adding item columns.")
-
-        # Make sure parsing worked: the first row must have ItemId 103, correct "diff" and clicked_object "diff"
-        self.assertEqual(df_answers_and_items.loc[0, "ItemId"], 103, "First row ItemId should be 103")
-        self.assertEqual(df_answers_and_items.loc[0, "correct"], "diff", "First row correct answer should be 'diff'")
-        self.assertEqual(df_answers_and_items.loc[0, "clicked_object"], "diff", "First row clicked_object should be 'diff'")
-
-        # Also check last row: ItemId 114, correct "same" and clicked_object "same"
-        self.assertEqual(df_answers_and_items.loc[len(df_answers_and_items)-1, "ItemId"], 114, "Last row ItemId should be 143")
-        self.assertEqual(df_answers_and_items.loc[len(df_answers_and_items)-1, "correct"], "diff", "Last row correct answer should be 'diff'")
-        self.assertEqual(df_answers_and_items.loc[len(df_answers_and_items)-1, "clicked_object"], "diff", "Last row clicked_object should be 'diff'")
+        df_answers_and_items : pd.DataFrame = self._load_server_log_dataframe()
 
 
 
-        def answer_generator(df: pd.DataFrame) -> List[str]:
-            answers = []
-            for idx, row in df.iterrows():
-                item_id = row['ItemId']
-                user_answer = row['UserAnswer']
-                answers.append(user_answer)
-            return answers
+        for idx, row in df_answers_and_items.iterrows():
+            item_id = row['ids']
+            user_answer = row['clicked_object']
+            correct_answer = row['correct']
+            was_correct = user_answer == correct_answer
+            print(f"row # {idx}, ItemID:={item_id}, User Answer={user_answer}, correct answer={correct_answer}, was_correct={was_correct}, a={row['a']}, b={row['b']}, c={row['c']}, d={row['d']}")
+
+
+        item_pool : ItemPool = ItemPool.load_from_dataframe(df_answers_and_items)
+
+        # Create adaptive test instance
+        adaptive_test: AdaptiveTest = TestAssembler(
+            item_pool=item_pool,
+            simulation_id="42",
+            participant_id="john_doe",
+            ability_estimator=BayesModal,
+            estimator_args=HelperTools.get_estimator_args(),
+            item_selector=maximum_information_criterion,
+            simulation=False,
+            debug=False
+        )
+
+        # Define get_response function to simulate user answers from the dataframe
+        def get_response(item: TestItem) -> int:
+            correct_answer: str = df_answers_and_items.loc[df_answers_and_items["ids"] == item.id, "correct"].values[0]
+            assert correct_answer in ["same", "diff"], f"Unexpected correct answer: {correct_answer}, expected 'same' or 'diff'."
+
+            user_answer : str = df_answers_and_items.loc[df_answers_and_items["ids"] == item.id, "clicked_object"].values[0]
+            assert user_answer in ["same", "diff"], f"Unexpected user answer: {user_answer}, expected 'same' or 'diff'."
+
+            user_score : int = 1 if user_answer == correct_answer else 0
+            print(f"Item ID: {item.id}, Correct Answer: {correct_answer}, User Answer: {user_answer}. Score: {user_score}")
+            return user_score
+
+        adaptive_test.get_response = get_response
+
+        # Run the adaptive test for each item in the pool
+        ability_levels : List[Tuple[float, float]] = []
+        for idx, item in enumerate(item_pool.test_items):
+            adaptive_test.run_test_once()
+            current_true_ability_level, std_err_estimate = adaptive_test.estimate_ability_level()
+            print(f"After item #{idx+1} with ID {item.id}: estimated ability and standard error: {current_true_ability_level}, {std_err_estimate}")
+            ability_levels.append((current_true_ability_level, std_err_estimate))
+
+        print(f"Final ability level: {ability_levels[-1][0]}, standard error: {ability_levels[-1][1]}")
+
 
 
