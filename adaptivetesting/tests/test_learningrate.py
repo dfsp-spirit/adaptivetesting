@@ -124,6 +124,12 @@ class TestRealWorld(unittest.TestCase):
         self.assertEqual(df_items.loc[0, "correct"], "diff", "First row correct answer should be 'diff'")
         self.assertEqual(df_items.loc[0, "clicked_object"], "diff", "First row clicked_object should be 'diff'")
 
+        # Also check last row: ItemId 114, correct "same" and clicked_object "same"
+        self.assertEqual(df_items.loc[len(df_items)-1, "ItemId"], 114, "Last row ItemId should be 143")
+        self.assertEqual(df_items.loc[len(df_items)-1, "correct"], "diff", "Last row correct answer should be 'diff'")
+        self.assertEqual(df_items.loc[len(df_items)-1, "clicked_object"], "diff", "Last row clicked_object should be 'diff'")
+
+
 
         def answer_generator(df: pd.DataFrame) -> List[str]:
             answers = []
