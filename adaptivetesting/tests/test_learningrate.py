@@ -98,3 +98,39 @@ class TestRealWorld(unittest.TestCase):
         self.assertTrue(-11 <= final_ability <= 2,
                        f"Final ability {final_ability} unsrealistic for always answering 'same'.")
 
+    def test_answers_from_server(self):
+        current_source_dir = os.path.dirname(os.path.abspath(__file__)) # dev_tools
+        answers_and_items_file = os.path.join(current_source_dir, "CustomTaskTrial_filtered.csv")
+        df_items = pd.read_csv(answers_and_items_file)
+        # assert the columns "definition", "correct", and "clicked_object" exist in the dataframe
+        expected_columns = ["definition", "correct", "clicked_object"]
+        for col in expected_columns:
+            self.assertIn(col, df_items.columns, f"Column '{col}' not found in answers and items file.")
+
+        # the "definition" column contains a JSON that includes the item ID in the "id" field, it looks like this:
+        # {"item": {"py/object": "adaptivetesting.models.__test_item.TestItem", "id": "103", "a": 43.07178122732465, "b": 0.0119335203113762, "c": 0.121192453225549, "d": 1.0}, "correct": "diff", "id": {"py/object": "numpy.int64", "dtype": "int64", "value": 103}, "merged_file": "static/stimuli_merged/Task_0103_merged.wav", "duration_target": {"py/object": "numpy.float64",
+        # parse the ID from the JSON in the "definition" column and create a new column "ItemId" in the dataframe
+        import json
+        def parse_item_id(definition_json: str) -> int:
+            definition_dict = json.loads(definition_json)
+            item_id = int(definition_dict["item"]["id"])
+            return item_id
+
+        # Create new column "ItemId"
+        df_items["ItemId"] = df_items["definition"].apply(parse_item_id)
+
+        # Make sure parsing worked: the first row must have ItemId 103, correct "diff" and clicked_object "diff"
+        self.assertEqual(df_items.loc[0, "ItemId"], 103, "First row ItemId should be 103")
+        self.assertEqual(df_items.loc[0, "correct"], "diff", "First row correct answer should be 'diff'")
+        self.assertEqual(df_items.loc[0, "clicked_object"], "diff", "First row clicked_object should be 'diff'")
+
+
+        def answer_generator(df: pd.DataFrame) -> List[str]:
+            answers = []
+            for idx, row in df.iterrows():
+                item_id = row['ItemId']
+                user_answer = row['UserAnswer']
+                answers.append(user_answer)
+            return answers
+
+
