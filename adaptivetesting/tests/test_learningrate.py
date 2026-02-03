@@ -96,17 +96,10 @@ class TestRealWorld(unittest.TestCase):
         )
         final_ability = ability_levels[-1][0]
         self.assertTrue(-11 <= final_ability <= 2,
-                       f"Final ability {final_ability} unsrealistic for always answering 'same'.")
+                       f"Final ability {final_ability} unrealistic for always answering 'same'.")
 
-    def test_answers_from_server(self):
-        current_source_dir = os.path.dirname(os.path.abspath(__file__)) # dev_tools
-        answers_and_items_file = os.path.join(current_source_dir, "CustomTaskTrial_filtered.csv")
-        df_items = pd.read_csv(answers_and_items_file)
-        # assert the columns "definition", "correct", and "clicked_object" exist in the dataframe
-        expected_columns = ["definition", "correct", "clicked_object"]
-        for col in expected_columns:
-            self.assertIn(col, df_items.columns, f"Column '{col}' not found in answers and items file.")
 
+    def add_item_columns_to_dataframe(self, df_answers_and_items):
         # the "definition" column contains a JSON that includes the item ID in the "id" field, it looks like this:
         # {"item": {"py/object": "adaptivetesting.models.__test_item.TestItem", "id": "103", "a": 43.07178122732465, "b": 0.0119335203113762, "c": 0.121192453225549, "d": 1.0}, "correct": "diff", "id": {"py/object": "numpy.int64", "dtype": "int64", "value": 103}, "merged_file": "static/stimuli_merged/Task_0103_merged.wav", "duration_target": {"py/object": "numpy.float64",
         # parse the ID from the JSON in the "definition" column and create a new column "ItemId" in the dataframe
@@ -116,18 +109,44 @@ class TestRealWorld(unittest.TestCase):
             item_id = int(definition_dict["item"]["id"])
             return item_id
 
+        def parse_item_attributes(definition_json: str) -> Tuple[float, float, float, float]:
+            definition_dict = json.loads(definition_json)
+            a = float(definition_dict["item"]["a"])
+            b = float(definition_dict["item"]["b"])
+            c = float(definition_dict["item"]["c"])
+            d = float(definition_dict["item"]["d"])
+            return a, b, c, d
+
         # Create new column "ItemId"
-        df_items["ItemId"] = df_items["definition"].apply(parse_item_id)
+        df_answers_and_items["ItemId"] = df_answers_and_items["definition"].apply(parse_item_id)
+        # Create new columns for item attributes
+        df_answers_and_items[["a", "b", "c", "d"]] = df_answers_and_items["definition"].apply(parse_item_attributes).apply(pd.Series)
+        return df_answers_and_items
+
+
+    def test_answers_from_server(self):
+        current_source_dir = os.path.dirname(os.path.abspath(__file__)) # dev_tools
+        answers_and_items_file = os.path.join(current_source_dir, "CustomTaskTrial_filtered.csv")
+        df_answers_and_items = pd.read_csv(answers_and_items_file)
+        # assert the columns "definition", "correct", and "clicked_object" exist in the dataframe
+        expected_columns = ["definition", "correct", "clicked_object"]
+        for col in expected_columns:
+            self.assertIn(col, df_answers_and_items.columns, f"Column '{col}' not found in answers and items file.")
+
+        df_answers_and_items = self.add_item_columns_to_dataframe(df_answers_and_items)
+        expected_columns_after = expected_columns + ["ItemId", "a", "b", "c", "d"]
+        for col in expected_columns_after:
+            self.assertIn(col, df_answers_and_items.columns, f"Column '{col}' not found in answers and items file after adding item columns.")
 
         # Make sure parsing worked: the first row must have ItemId 103, correct "diff" and clicked_object "diff"
-        self.assertEqual(df_items.loc[0, "ItemId"], 103, "First row ItemId should be 103")
-        self.assertEqual(df_items.loc[0, "correct"], "diff", "First row correct answer should be 'diff'")
-        self.assertEqual(df_items.loc[0, "clicked_object"], "diff", "First row clicked_object should be 'diff'")
+        self.assertEqual(df_answers_and_items.loc[0, "ItemId"], 103, "First row ItemId should be 103")
+        self.assertEqual(df_answers_and_items.loc[0, "correct"], "diff", "First row correct answer should be 'diff'")
+        self.assertEqual(df_answers_and_items.loc[0, "clicked_object"], "diff", "First row clicked_object should be 'diff'")
 
         # Also check last row: ItemId 114, correct "same" and clicked_object "same"
-        self.assertEqual(df_items.loc[len(df_items)-1, "ItemId"], 114, "Last row ItemId should be 143")
-        self.assertEqual(df_items.loc[len(df_items)-1, "correct"], "diff", "Last row correct answer should be 'diff'")
-        self.assertEqual(df_items.loc[len(df_items)-1, "clicked_object"], "diff", "Last row clicked_object should be 'diff'")
+        self.assertEqual(df_answers_and_items.loc[len(df_answers_and_items)-1, "ItemId"], 114, "Last row ItemId should be 143")
+        self.assertEqual(df_answers_and_items.loc[len(df_answers_and_items)-1, "correct"], "diff", "Last row correct answer should be 'diff'")
+        self.assertEqual(df_answers_and_items.loc[len(df_answers_and_items)-1, "clicked_object"], "diff", "Last row clicked_object should be 'diff'")
 
 
 
