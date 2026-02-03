@@ -15,7 +15,7 @@ class Prior(ABC):
 
         Args:
             x (float | np.ndarray): point at which to calculate the function value
-        
+
         Returns:
             ndarray: function value
         """
@@ -28,19 +28,22 @@ class NormalPrior(Prior):
 
         Args:
             mean (float): mean of the distribution
-            
+
             sd (float): standard deviation of the distribution
         """
         self.mean = mean
         self.sd = sd
         super().__init__()
 
+    def __repr__ (self) -> str:
+        return f"NormalPrior(mean={self.mean}, sd={self.sd})"
+
     def pdf(self, x: float | np.ndarray) -> np.ndarray:
         """Probability density function for a prior distribution
 
         Args:
             x (float | np.ndarray): point at which to calculate the function value
-        
+
         Returns:
             ndarray: function value
         """
@@ -61,11 +64,11 @@ class CustomPrior(Prior):
 
         Args:
             random_variable (rv_continuous): Any continous, univariate random variable from the scipy.stats module.
-            
+
             *args (float): Custom parameters required to calculate the pdf of that specific random variable.
 
             loc (float, optional): Location parameter. Defaults to 0.
-            
+
             scale (float, optional): Scale parameter. Defaults to 1.
         """
         super().__init__()
@@ -73,7 +76,7 @@ class CustomPrior(Prior):
         self.args = args
         self.loc = loc
         self.scale = scale
-    
+
     def pdf(self, x: float | np.ndarray) -> np.ndarray:
         result = self.random_variable.pdf(
             x,

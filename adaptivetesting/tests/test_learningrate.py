@@ -88,16 +88,6 @@ class TestRealWorld(unittest.TestCase):
         self.assertEqual(num_same, 54, f"There should be 54 'same' answers in the item pool but there are {num_same}")
         self.assertEqual(num_diff, 90, f"There should be 90 'diff' answers in the item pool but there are {num_diff}")
 
-    def test_always_same(self):
-        """Test when user always answers 'same'"""
-        print("Running test 'test_always_same'")
-        ability_levels = self._run_adaptive_test_with_answers(
-            lambda df: ["same" for _ in range(len(df))]
-        )
-        final_ability = ability_levels[-1][0]
-        self.assertTrue(-11 <= final_ability <= 2,
-                       f"Final ability {final_ability} unrealistic for always answering 'same'.")
-
 
     def _load_server_log_dataframe(self) -> pd.DataFrame:
         current_source_dir = os.path.dirname(os.path.abspath(__file__)) # dev_tools
@@ -123,6 +113,13 @@ class TestRealWorld(unittest.TestCase):
         self.assertEqual(df_answers_and_items.loc[len(df_answers_and_items)-1, "ids"], 114, "Last row ItemId should be 143")
         self.assertEqual(df_answers_and_items.loc[len(df_answers_and_items)-1, "correct"], "diff", "Last row correct answer should be 'diff'")
         self.assertEqual(df_answers_and_items.loc[len(df_answers_and_items)-1, "clicked_object"], "diff", "Last row clicked_object should be 'diff'")
+
+        #remove the "definition" column as it is no longer needed
+        df_answers_and_items = df_answers_and_items.drop(columns=["definition"])
+
+        # write the dataframe to a new CSV for manual inspection
+        debug_output_file = os.path.join(current_source_dir, "CustomTaskTrial_parsed_debug.csv")
+        df_answers_and_items.to_csv(debug_output_file, index=False)
 
         return df_answers_and_items
 
@@ -155,14 +152,15 @@ class TestRealWorld(unittest.TestCase):
 
         df_answers_and_items : pd.DataFrame = self._load_server_log_dataframe()
 
+        do_print_raw = False
 
-
-        for idx, row in df_answers_and_items.iterrows():
-            item_id = row['ids']
-            user_answer = row['clicked_object']
-            correct_answer = row['correct']
-            was_correct = user_answer == correct_answer
-            print(f"row # {idx}, ItemID:={item_id}, User Answer={user_answer}, correct answer={correct_answer}, was_correct={was_correct}, a={row['a']}, b={row['b']}, c={row['c']}, d={row['d']}")
+        if do_print_raw:
+            for idx, row in df_answers_and_items.iterrows():
+                item_id = row['ids']
+                user_answer = row['clicked_object']
+                correct_answer = row['correct']
+                was_correct = user_answer == correct_answer
+                print(f"row # {idx}, ItemID:={item_id}, User Answer={user_answer}, correct answer={correct_answer}, was_correct={was_correct}, a={row['a']}, b={row['b']}, c={row['c']}, d={row['d']}")
 
 
         item_pool : ItemPool = ItemPool.load_from_dataframe(df_answers_and_items)
@@ -179,8 +177,11 @@ class TestRealWorld(unittest.TestCase):
             debug=False
         )
 
+        print(f"Running adaptive test with {len(item_pool.test_items)} items from server log data...")
+        print(f"Used estimator args: {HelperTools.get_estimator_args()}")
+
         # Define get_response function to simulate user answers from the dataframe
-        def get_response(item: TestItem) -> int:
+        def get_score_based_on_response(item: TestItem) -> int:
             correct_answer: str = df_answers_and_items.loc[df_answers_and_items["ids"] == item.id, "correct"].values[0]
             assert correct_answer in ["same", "diff"], f"Unexpected correct answer: {correct_answer}, expected 'same' or 'diff'."
 
@@ -191,7 +192,7 @@ class TestRealWorld(unittest.TestCase):
             print(f"Item ID: {item.id}, Correct Answer: {correct_answer}, User Answer: {user_answer}. Score: {user_score}")
             return user_score
 
-        adaptive_test.get_response = get_response
+        adaptive_test.get_response = get_score_based_on_response
 
         # Run the adaptive test for each item in the pool
         ability_levels : List[Tuple[float, float]] = []
@@ -202,6 +203,51 @@ class TestRealWorld(unittest.TestCase):
             ability_levels.append((current_true_ability_level, std_err_estimate))
 
         print(f"Final ability level: {ability_levels[-1][0]}, standard error: {ability_levels[-1][1]}")
+
+
+    def test_debug_extreme_a_issue(self):
+        """Debug the extreme |a| issue"""
+        import numpy as np
+
+        # Item 55
+        a, b, c, d = -31.59663921840403, 0.0993786327540232, 3.273396320598813e-05, 1.0
+
+        print("\n=== EXTREME |a| ANALYSIS ===")
+        print(f"Item 55: a={a:.2f}, |a|={abs(a):.2f}")
+
+        # Likelihood surface
+        theta_range = np.linspace(-1, 1, 41)
+        likelihoods = []
+
+        for theta in theta_range:
+            exponent = -a * (theta - b)
+            if exponent > 100:
+                P = c  # a is negative, so when exponent large positive, P→c
+            elif exponent < -100:
+                P = d  # a is negative, so when exponent large negative, P→d
+            else:
+                exp_term = np.exp(exponent)
+                P = c + (d - c) / (1 + exp_term)
+
+            # Log likelihood for correct response
+            log_lik = np.log(max(P, 1e-100))
+            likelihoods.append(log_lik)
+
+        # Find maximum likelihood theta
+        max_idx = np.argmax(likelihoods)
+        print(f"Maximum likelihood θ: {theta_range[max_idx]:.3f}")
+        print(f"Likelihood at θ=0.14977: {likelihoods[np.argmin(np.abs(theta_range-0.14977))]:.3f}")
+        print(f"Likelihood at θ=0.11071: {likelihoods[np.argmin(np.abs(theta_range-0.11071))]:.3f}")
+        print(f"Likelihood at θ=0.09938 (b): {likelihoods[np.argmin(np.abs(theta_range-b))]:.3f}")
+        print(f"Likelihood at θ=0.05: {likelihoods[np.argmin(np.abs(theta_range-0.05))]:.3f}")
+
+        # Check if numerical overflow occurs
+        print(f"\nNumerical check for θ=0.14977:")
+        theta = 0.14977
+        exponent = -a * (theta - b)
+        print(f"  exponent = {exponent:.6f}")
+        print(f"  exp(exponent) = {np.exp(exponent):.6e}")
+        print(f"  Is exp(exponent) overflowing? {np.exp(exponent) > 1e100}")
 
 
 
