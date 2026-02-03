@@ -117,6 +117,8 @@ class TestRealWorld(unittest.TestCase):
         #remove the "definition" column as it is no longer needed
         df_answers_and_items = df_answers_and_items.drop(columns=["definition"])
 
+        df_answers_and_items['a'] = df_answers_and_items['a'] / 1.7
+
         # write the dataframe to a new CSV for manual inspection
         debug_output_file = os.path.join(current_source_dir, "CustomTaskTrial_parsed_debug.csv")
         df_answers_and_items.to_csv(debug_output_file, index=False)
@@ -248,6 +250,126 @@ class TestRealWorld(unittest.TestCase):
         print(f"  exponent = {exponent:.6f}")
         print(f"  exp(exponent) = {np.exp(exponent):.6e}")
         print(f"  Is exp(exponent) overflowing? {np.exp(exponent) > 1e100}")
+
+    def notest_x(self):
+        # Your values from debug print
+        theta = 0.13714019515659662
+        a = 1.247223318277813
+        b = 0.9536229101996267
+        c = 5.316957777781582e-06
+        d = 1.0
+
+        print("=== MANUAL CALCULATION ===")
+        print(f"theta = {theta}")
+        print(f"a = {a}")
+        print(f"b = {b}")
+        print(f"c = {c}")
+        print(f"d = {d}")
+
+        # Method 1: Direct 4PL
+        z = a * (theta - b)
+        print(f"\n1. z = a*(θ-b) = {a}*({theta}-{b}) = {z}")
+        print(f"   exp(z) = {np.exp(z)}")
+
+        P1 = c + (d - c) / (1 + np.exp(-a * (theta - b)))
+        print(f"\n2. Direct formula: P = c + (d-c)/(1+exp(-a*(θ-b)))")
+        print(f"   P = {c} + ({d}-{c})/(1+exp(-{a}*({theta}-{b})))")
+        print(f"   P = {c} + {d-c}/(1+exp({-a*(theta-b)}))")
+        print(f"   P = {c} + {d-c}/(1+{np.exp(-a*(theta-b))})")
+        print(f"   P = {P1}")
+
+        # Method 2: Using exp(z)/(1+exp(z))
+        P2 = c + (d - c) * (np.exp(z) / (1 + np.exp(z)))
+        print(f"\n3. Alternative: P = c + (d-c)*[exp(z)/(1+exp(z))]")
+        print(f"   P = {c} + ({d}-{c})*[{np.exp(z)}/(1+{np.exp(z)})]")
+        print(f"   P = {c} + {d-c}*{np.exp(z)/(1+np.exp(z))}")
+        print(f"   P = {P2}")
+
+        print(f"\nDo they match? {np.isclose(P1, P2)}")
+        print(f"adaptivetesting said: 0.2653555055509495")
+        print(f"Our calculation gives: {P1}")
+
+    def test_debug_bayesmodal_optimization(self):
+        """Debug BayesModal optimization for the full response pattern"""
+        import numpy as np
+        from scipy.optimize import minimize
+
+        # Load all responses and items
+        df = self._load_server_log_dataframe()
+
+        responses = []
+        a_list, b_list, c_list, d_list = [], [], [], []
+
+        for _, row in df.iterrows():
+            responses.append(1 if row['clicked_object'] == row['correct'] else 0)
+            a_list.append(row['a'])
+            b_list.append(row['b'])
+            c_list.append(row['c'])
+            d_list.append(row['d'])
+
+        responses = np.array(responses)
+        a_list = np.array(a_list)
+        b_list = np.array(b_list)
+        c_list = np.array(c_list)
+        d_list = np.array(d_list)
+
+        print(f"\n=== FULL DATASET OPTIMIZATION DEBUG ===")
+        print(f"Total items: {len(responses)}")
+        print(f"Correct responses: {sum(responses)}/{len(responses)}")
+        print(f"Number with negative a: {(a_list < 0).sum()}")
+        print(f"Negative a values: {a_list[a_list < 0]}")
+
+        # Define objective function (negative log-posterior)
+        prior_mean, prior_sd = 0.0, 1.0
+
+        def objective(theta):
+            # Log prior
+            log_prior = -0.5 * ((theta - prior_mean) / prior_sd) ** 2
+
+            # Log likelihood for ALL items
+            log_lik = 0
+            for i in range(len(responses)):
+                a, b, c, d = a_list[i], b_list[i], c_list[i], d_list[i]
+                exponent = -a * (theta - b)
+
+                # Stable probability calculation
+                if exponent > 100:
+                    P = c if a > 0 else d
+                elif exponent < -100:
+                    P = d if a > 0 else c
+                else:
+                    exp_term = np.exp(exponent)
+                    P = c + (d - c) / (1 + exp_term)
+
+                P = np.clip(P, 1e-100, 1 - 1e-100)
+
+                if responses[i] == 1:
+                    log_lik += np.log(P)
+                else:
+                    log_lik += np.log(1 - P)
+
+            return -(log_prior + log_lik)  # Negative for minimization
+
+        # Try optimization from different starting points
+        print("\nOptimization from different starting points:")
+        starting_points = [-2.0, -1.0, 0.0, 0.137, 0.4, 1.0, 2.0]
+
+        for x0 in starting_points:
+            result = minimize(objective, x0=x0, bounds=[(-4, 4)],
+                            method='L-BFGS-B', options={'ftol': 1e-12, 'gtol': 1e-12})
+            print(f"  Start θ={x0:.3f} → θ={result.x[0]:.6f}, f={result.fun:.6f}, success={result.success}")
+
+        # Also try scanning the objective function
+        print("\nObjective function values:")
+        theta_range = np.linspace(-2, 2, 41)
+        obj_values = [objective(theta) for theta in theta_range]
+
+        min_idx = np.argmin(obj_values)
+        print(f"Minimum at θ={theta_range[min_idx]:.3f}, value={obj_values[min_idx]:.6f}")
+
+        # Check a few key points
+        for theta in [0.137, 0.4, 0.954, 1.5]:
+            print(f"  θ={theta:.3f}: objective={objective(theta):.6f}")
 
 
 

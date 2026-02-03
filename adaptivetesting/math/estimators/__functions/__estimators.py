@@ -20,8 +20,14 @@ def probability_y1(mu: np.ndarray,
     Returns:
         np.ndarray: probability of getting the item correct
     """
+    do_debug = False
     # Compute the exponent safely
+    if do_debug:
+        print(f"\n[DEBUG probability_y1] mu={mu}, a={a}, b={b}, c={c}, d={d}")
     z = a * (mu - b)
+
+    if do_debug:
+        print(f"[DEBUG probability_y1] z = a*(mu-b) = {a}*({mu}-{b}) = {z}")
 
     # Use log-sum-exp trick for numerical stability
     # For large positive z: exp(z)/(1+exp(z)) ≈ 1
@@ -29,6 +35,10 @@ def probability_y1(mu: np.ndarray,
 
     # Clip z to prevent overflow in exp()
     z_clipped = np.clip(z, -500, 500)  # exp(-500) and exp(500) are safe
+
+    if not np.array_equal(z, z_clipped):
+        if do_debug:
+            print(f"[DEBUG probability_y1] z was clipped from {z} to {z_clipped}")
 
     # Compute the logistic function safely
     # Use different formulas based on the sign of z for stability
@@ -56,7 +66,21 @@ def probability_y1(mu: np.ndarray,
     # Ensure probabilities are within valid range [c, d]
     value = np.clip(value, c, d)
 
-    return np.squeeze(value)
+    if do_debug:
+        print(f"[DEBUG probability_y1] Final value before clip = {value}")
+
+    epsilon = 1e-15  # Much larger than 1e-300!
+    value = np.clip(value, epsilon, 1 - epsilon)
+
+    if do_debug:
+        print(f"[DEBUG probability_y1] Final value clipped with epsilon = {epsilon} : {value}")
+
+    value_squeezed = np.squeeze(value)
+
+    if do_debug:
+        print(f"[DEBUG probability_y1] value_squeezed={value_squeezed}\n")
+
+    return value_squeezed
 
 
 def probability_y0(mu: np.ndarray,
