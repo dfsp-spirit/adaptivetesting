@@ -38,6 +38,7 @@ class HelperTools:
         est_args =  {
             "prior": NormalPrior(0.0, 0.5), # Use a normal distribution with mean 0 and standard deviation 1 as prior.
             "optimization_interval": (-4, 4),
+
         }
         return est_args
 

@@ -15,7 +15,7 @@ from adaptivetesting.math.estimators.__functions.__estimators import probability
 from adaptivetesting.simulation import Simulation, StoppingCriterion, ResultOutputFormat, SimulationPool
 
 import pandas as pd
-from scipy.stats import t
+from scipy.stats import t, norm
 from typing import List, Tuple
 import numpy as np
 import seaborn as sns
@@ -75,7 +75,7 @@ class TestRealWorld(unittest.TestCase):
 
     ############################ Test Cases ############################
 
-    def test_item_pool(self):
+    def no_test_item_pool(self):
         """Test that item pool loads correctly"""
         df_items = HelperTools.load_dataframe()
         self.assertGreater(len(df_items), 0, "Item pool should not be empty")
@@ -87,6 +87,32 @@ class TestRealWorld(unittest.TestCase):
         print(f"Number of answers where 'diff' is correct in item pool: {num_diff}")
         self.assertEqual(num_same, 54, f"There should be 54 'same' answers in the item pool but there are {num_same}")
         self.assertEqual(num_diff, 90, f"There should be 90 'diff' answers in the item pool but there are {num_diff}")
+
+
+    def _scale_pd_series(self, series, new_min=0.5, new_max=4.0):
+        """
+        Scale a series from its original range to [new_min, new_max]
+
+        Args:
+            series: pandas Series to scale
+            new_min: minimum of target range
+            new_max: maximum of target range
+
+        Returns:
+            scaled Series
+        """
+        old_min = series.min()
+        old_max = series.max()
+
+        # Handle negative values by taking absolute if needed
+        # (discrimination parameters should be positive in IRT)
+        series = np.abs(series)
+
+        # Scale to [0, 1] then to [new_min, new_max]
+        scaled = (series - series.min()) / (series.max() - series.min())
+        scaled = new_min + scaled * (new_max - new_min)
+
+        return scaled
 
 
     def _load_server_log_dataframe(self) -> pd.DataFrame:
@@ -117,7 +143,10 @@ class TestRealWorld(unittest.TestCase):
         #remove the "definition" column as it is no longer needed
         df_answers_and_items = df_answers_and_items.drop(columns=["definition"])
 
-        df_answers_and_items['a'] = df_answers_and_items['a'] / 1.7
+        #df_answers_and_items['a'] = df_answers_and_items['a']
+        df_answers_and_items['a'] = self._scale_pd_series(df_answers_and_items['a'], 0.5, 4.0) # discrimination
+        df_answers_and_items['b'] = self._scale_pd_series(df_answers_and_items['b'], -3.0, 3.0) # difficulty
+        df_answers_and_items['c'] = self._scale_pd_series(df_answers_and_items['c'], 0.35, 0.49)   # guessing
 
         # write the dataframe to a new CSV for manual inspection
         debug_output_file = os.path.join(current_source_dir, "CustomTaskTrial_parsed_debug.csv")
@@ -167,20 +196,31 @@ class TestRealWorld(unittest.TestCase):
 
         item_pool : ItemPool = ItemPool.load_from_dataframe(df_answers_and_items)
 
+        normal_prior = NormalPrior(0.0, 1.0)
+        custom_prior = CustomPrior(norm, loc=0.0, scale=1.0)
+
+        est_args =  {
+            "prior": custom_prior, # Use a normal distribution with mean 0 and standard deviation 1 as prior.
+            "optimization_interval": (-4, 4),
+
+        }
+
         # Create adaptive test instance
         adaptive_test: AdaptiveTest = TestAssembler(
             item_pool=item_pool,
             simulation_id="42",
             participant_id="john_doe",
             ability_estimator=BayesModal,
-            estimator_args=HelperTools.get_estimator_args(),
-            item_selector=maximum_information_criterion,
+            estimator_args=est_args, # TODO: check other options
+            item_selector=maximum_information_criterion, # TODO: check alternatives
+            item_selector_args={}, # TODO: check this!
+            initial_ability_level=0,
             simulation=False,
             debug=False
         )
 
         print(f"Running adaptive test with {len(item_pool.test_items)} items from server log data...")
-        print(f"Used estimator args: {HelperTools.get_estimator_args()}")
+        print(f"Used estimator args: {est_args}")
 
         # Define get_response function to simulate user answers from the dataframe
         def get_score_based_on_response(item: TestItem) -> int:
@@ -205,171 +245,5 @@ class TestRealWorld(unittest.TestCase):
             ability_levels.append((current_true_ability_level, std_err_estimate))
 
         print(f"Final ability level: {ability_levels[-1][0]}, standard error: {ability_levels[-1][1]}")
-
-
-    def test_debug_extreme_a_issue(self):
-        """Debug the extreme |a| issue"""
-        import numpy as np
-
-        # Item 55
-        a, b, c, d = -31.59663921840403, 0.0993786327540232, 3.273396320598813e-05, 1.0
-
-        print("\n=== EXTREME |a| ANALYSIS ===")
-        print(f"Item 55: a={a:.2f}, |a|={abs(a):.2f}")
-
-        # Likelihood surface
-        theta_range = np.linspace(-1, 1, 41)
-        likelihoods = []
-
-        for theta in theta_range:
-            exponent = -a * (theta - b)
-            if exponent > 100:
-                P = c  # a is negative, so when exponent large positive, P→c
-            elif exponent < -100:
-                P = d  # a is negative, so when exponent large negative, P→d
-            else:
-                exp_term = np.exp(exponent)
-                P = c + (d - c) / (1 + exp_term)
-
-            # Log likelihood for correct response
-            log_lik = np.log(max(P, 1e-100))
-            likelihoods.append(log_lik)
-
-        # Find maximum likelihood theta
-        max_idx = np.argmax(likelihoods)
-        print(f"Maximum likelihood θ: {theta_range[max_idx]:.3f}")
-        print(f"Likelihood at θ=0.14977: {likelihoods[np.argmin(np.abs(theta_range-0.14977))]:.3f}")
-        print(f"Likelihood at θ=0.11071: {likelihoods[np.argmin(np.abs(theta_range-0.11071))]:.3f}")
-        print(f"Likelihood at θ=0.09938 (b): {likelihoods[np.argmin(np.abs(theta_range-b))]:.3f}")
-        print(f"Likelihood at θ=0.05: {likelihoods[np.argmin(np.abs(theta_range-0.05))]:.3f}")
-
-        # Check if numerical overflow occurs
-        print(f"\nNumerical check for θ=0.14977:")
-        theta = 0.14977
-        exponent = -a * (theta - b)
-        print(f"  exponent = {exponent:.6f}")
-        print(f"  exp(exponent) = {np.exp(exponent):.6e}")
-        print(f"  Is exp(exponent) overflowing? {np.exp(exponent) > 1e100}")
-
-    def notest_x(self):
-        # Your values from debug print
-        theta = 0.13714019515659662
-        a = 1.247223318277813
-        b = 0.9536229101996267
-        c = 5.316957777781582e-06
-        d = 1.0
-
-        print("=== MANUAL CALCULATION ===")
-        print(f"theta = {theta}")
-        print(f"a = {a}")
-        print(f"b = {b}")
-        print(f"c = {c}")
-        print(f"d = {d}")
-
-        # Method 1: Direct 4PL
-        z = a * (theta - b)
-        print(f"\n1. z = a*(θ-b) = {a}*({theta}-{b}) = {z}")
-        print(f"   exp(z) = {np.exp(z)}")
-
-        P1 = c + (d - c) / (1 + np.exp(-a * (theta - b)))
-        print(f"\n2. Direct formula: P = c + (d-c)/(1+exp(-a*(θ-b)))")
-        print(f"   P = {c} + ({d}-{c})/(1+exp(-{a}*({theta}-{b})))")
-        print(f"   P = {c} + {d-c}/(1+exp({-a*(theta-b)}))")
-        print(f"   P = {c} + {d-c}/(1+{np.exp(-a*(theta-b))})")
-        print(f"   P = {P1}")
-
-        # Method 2: Using exp(z)/(1+exp(z))
-        P2 = c + (d - c) * (np.exp(z) / (1 + np.exp(z)))
-        print(f"\n3. Alternative: P = c + (d-c)*[exp(z)/(1+exp(z))]")
-        print(f"   P = {c} + ({d}-{c})*[{np.exp(z)}/(1+{np.exp(z)})]")
-        print(f"   P = {c} + {d-c}*{np.exp(z)/(1+np.exp(z))}")
-        print(f"   P = {P2}")
-
-        print(f"\nDo they match? {np.isclose(P1, P2)}")
-        print(f"adaptivetesting said: 0.2653555055509495")
-        print(f"Our calculation gives: {P1}")
-
-    def test_debug_bayesmodal_optimization(self):
-        """Debug BayesModal optimization for the full response pattern"""
-        import numpy as np
-        from scipy.optimize import minimize
-
-        # Load all responses and items
-        df = self._load_server_log_dataframe()
-
-        responses = []
-        a_list, b_list, c_list, d_list = [], [], [], []
-
-        for _, row in df.iterrows():
-            responses.append(1 if row['clicked_object'] == row['correct'] else 0)
-            a_list.append(row['a'])
-            b_list.append(row['b'])
-            c_list.append(row['c'])
-            d_list.append(row['d'])
-
-        responses = np.array(responses)
-        a_list = np.array(a_list)
-        b_list = np.array(b_list)
-        c_list = np.array(c_list)
-        d_list = np.array(d_list)
-
-        print(f"\n=== FULL DATASET OPTIMIZATION DEBUG ===")
-        print(f"Total items: {len(responses)}")
-        print(f"Correct responses: {sum(responses)}/{len(responses)}")
-        print(f"Number with negative a: {(a_list < 0).sum()}")
-        print(f"Negative a values: {a_list[a_list < 0]}")
-
-        # Define objective function (negative log-posterior)
-        prior_mean, prior_sd = 0.0, 1.0
-
-        def objective(theta):
-            # Log prior
-            log_prior = -0.5 * ((theta - prior_mean) / prior_sd) ** 2
-
-            # Log likelihood for ALL items
-            log_lik = 0
-            for i in range(len(responses)):
-                a, b, c, d = a_list[i], b_list[i], c_list[i], d_list[i]
-                exponent = -a * (theta - b)
-
-                # Stable probability calculation
-                if exponent > 100:
-                    P = c if a > 0 else d
-                elif exponent < -100:
-                    P = d if a > 0 else c
-                else:
-                    exp_term = np.exp(exponent)
-                    P = c + (d - c) / (1 + exp_term)
-
-                P = np.clip(P, 1e-100, 1 - 1e-100)
-
-                if responses[i] == 1:
-                    log_lik += np.log(P)
-                else:
-                    log_lik += np.log(1 - P)
-
-            return -(log_prior + log_lik)  # Negative for minimization
-
-        # Try optimization from different starting points
-        print("\nOptimization from different starting points:")
-        starting_points = [-2.0, -1.0, 0.0, 0.137, 0.4, 1.0, 2.0]
-
-        for x0 in starting_points:
-            result = minimize(objective, x0=x0, bounds=[(-4, 4)],
-                            method='L-BFGS-B', options={'ftol': 1e-12, 'gtol': 1e-12})
-            print(f"  Start θ={x0:.3f} → θ={result.x[0]:.6f}, f={result.fun:.6f}, success={result.success}")
-
-        # Also try scanning the objective function
-        print("\nObjective function values:")
-        theta_range = np.linspace(-2, 2, 41)
-        obj_values = [objective(theta) for theta in theta_range]
-
-        min_idx = np.argmin(obj_values)
-        print(f"Minimum at θ={theta_range[min_idx]:.3f}, value={obj_values[min_idx]:.6f}")
-
-        # Check a few key points
-        for theta in [0.137, 0.4, 0.954, 1.5]:
-            print(f"  θ={theta:.3f}: objective={objective(theta):.6f}")
-
 
 

@@ -17,7 +17,7 @@ class BayesModal(IEstimator):
         """This class can be used to estimate the current ability level
             of a respondent given the response pattern and the corresponding
             item difficulties.
-            
+
             This type of estimation finds the maximum of the posterior distribution.
 
 
@@ -25,7 +25,7 @@ class BayesModal(IEstimator):
                 response_pattern (List[int] | np.ndarray ): list of response patterns (0: wrong, 1:right)
 
                 items (List[TestItem]): list of answered items
-            
+
                 prior (Prior): prior distribution
 
                 optimization_interval (Tuple[float, float]): interval used for the optimization function
@@ -35,6 +35,50 @@ class BayesModal(IEstimator):
         self.prior = prior
 
     def get_estimation(self) -> float:
+        """Estimate the current ability level using Expected A Posteriori (EAP)."""
+
+
+
+        print(f"Prior type: {type(self.prior)}, is NormalPrior? {type(self.prior) is NormalPrior}")
+
+        if type(self.prior) is NormalPrior:
+            return maximize_posterior(
+                self.a, self.b, self.c, self.d,
+                self.response_pattern, self.prior
+            )
+        else:
+            if not isinstance(self.prior, CustomPrior):
+                raise CustomPriorException("Use CustomPrior base class!")
+
+            mu = np.linspace(self.optimization_interval[0],
+                            self.optimization_interval[1],
+                            num=100000)
+
+            try:
+                # Calculate log-posterior for each point
+                log_posterior = np.array([
+                    -likelihood(m, self.a, self.b, self.c, self.d, self.response_pattern)
+                    + np.log(self.prior.pdf(m) + 1e-300)
+                    for m in mu
+                ])
+
+                # Log-sum-exp trick for numerical stability
+                log_posterior_max = np.max(log_posterior)
+                posterior = np.exp(log_posterior - log_posterior_max)
+                posterior = posterior / np.sum(posterior)
+
+                print(f"log_posterior range: [{np.min(log_posterior):.2f}, {np.max(log_posterior):.2f}]")
+                print(f"log_posterior_max = {log_posterior_max:.2f}")
+
+                # EAP
+                eap = np.sum(mu * posterior)
+
+                return float(eap)
+
+            except Exception as e:
+                raise AlgorithmException(e)
+
+    def get_estimation_orig(self) -> float:
         """Estimate the current ability level using Bayes Modal.
         If a `NormalPrior` is used, the `bounded` optimizer is used
         to get the ability estimate.
@@ -50,10 +94,11 @@ class BayesModal(IEstimator):
         Raises:
             AlgorithmException: Raised when maximum could not be found.
             CustomPriorException: Raised when custom prior is not based on the `CustomPrior` class.
-        
+
         Returns:
             float: ability estimation
         """
+        print(f"Prior type: {type(self.prior)}, is NormalPrior? {type(self.prior) is NormalPrior}")
         if type(self.prior) is NormalPrior:
             # get estimate using a classical optimizers approach
             return maximize_posterior(
@@ -72,10 +117,10 @@ class BayesModal(IEstimator):
             if not isinstance(self.prior, CustomPrior):
                 raise CustomPriorException("It seems like you are using a non-normal prior but",
                                            "did not use the CustomPrior base class!")
-            
+
             mu = np.linspace(self.optimization_interval[0],
                              self.optimization_interval[1],
-                             num=1000)
+                             num=100000)
             # calculate likelihood values for every mu
             try:
                 lik_values = np.array([
