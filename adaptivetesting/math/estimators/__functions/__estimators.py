@@ -143,6 +143,31 @@ def likelihood(mu: np.ndarray,
 
     return -np.prod(terms)
 
+def log_likelihood(mu: np.ndarray,
+                   a: np.ndarray,
+                   b: np.ndarray,
+                   c: np.ndarray,
+                   d: np.ndarray,
+                   response_pattern: np.ndarray) -> float:
+    """Log-likelihood function of the 4-PL model.
+    Returns the actual log-likelihood (not negative).
+    """
+    # Ensure arrays are properly shaped
+    a = np.atleast_1d(a)
+    b = np.atleast_1d(b)
+    c = np.atleast_1d(c)
+    d = np.atleast_1d(d)
+
+    p1 = probability_y1(mu, a, b, c, d)
+    p0 = 1 - p1
+
+    # Small epsilon to avoid log(0)
+    eps = 1e-15
+
+    # Sum in log space (never multiply!)
+    log_terms = response_pattern * np.log(p1 + eps) + (1 - response_pattern) * np.log(p0 + eps)
+
+    return np.sum(log_terms)
 
 def maximize_likelihood_function(a: np.ndarray,
                                  b: np.ndarray,

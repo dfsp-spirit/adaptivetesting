@@ -4,6 +4,7 @@ from ...services.__estimator_interface import IEstimator
 from ...models.__test_item import TestItem
 from ...models.__algorithm_exception import AlgorithmException
 from .__functions.__bayes import maximize_posterior, likelihood
+from .__functions.__estimators import log_likelihood
 from .__prior import Prior, NormalPrior, CustomPrior, CustomPriorException
 from .__test_information import test_information_function
 
@@ -56,8 +57,14 @@ class BayesModal(IEstimator):
 
             try:
                 # Calculate log-posterior for each point
+                #log_posterior = np.array([
+                #    -likelihood(m, self.a, self.b, self.c, self.d, self.response_pattern)
+                #    + np.log(self.prior.pdf(m) + 1e-300)
+                #    for m in mu
+                #])
+
                 log_posterior = np.array([
-                    -likelihood(m, self.a, self.b, self.c, self.d, self.response_pattern)
+                    log_likelihood(m, self.a, self.b, self.c, self.d, self.response_pattern)
                     + np.log(self.prior.pdf(m) + 1e-300)
                     for m in mu
                 ])
