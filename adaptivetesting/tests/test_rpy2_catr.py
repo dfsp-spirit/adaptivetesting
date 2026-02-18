@@ -1,4 +1,9 @@
 #!/usr/bin/which python
+#
+# Python code to test the integration of rpy2 with the catR package for Computerized Adaptive Testing (CAT).
+# This script reads an item bank from a CSV file, sets up the CAT simulation parameters, runs the simulation, and extracts results.
+
+
 
 import pandas as pd
 import rpy2.robjects as robjects
@@ -85,5 +90,12 @@ def test_rpy2():
 
     # Optional: If you want the estimate history (all 30 steps)
     # theta_history = list(result.rx2('thetaProv'))
+
+    robjects.r.pdf("cat_results.pdf")
+    robjects.r.plot(result)
+    robjects.r['dev.off']()
+    print("Plot saved to cat_results.pdf")
+
+
 if __name__ == "__main__":
     test_rpy2()
